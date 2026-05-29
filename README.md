@@ -124,6 +124,177 @@ graph LR
     end
 ```
 
+### Deployment Architecture
+
+```mermaid
+graph TB
+    subgraph Internet
+        User[User Browser]
+    end
+
+    subgraph Docker_Host["Docker Host"]
+        subgraph Network["pathforge-network"]
+            direction TB
+
+            subgraph Frontend_Container["Frontend Container"]
+                F[Vite Dev Server :5173]
+                FA[Static Assets]
+            end
+
+            subgraph Backend_Container["Backend Container"]
+                B[Uvicorn :8000]
+                BA[FastAPI App]
+                BS[Seed Script]
+            end
+
+            subgraph DB_Container["Database Container"]
+                PG[(PostgreSQL 16 :5432)]
+                PV[Persistent Volume]
+            end
+        end
+    end
+
+    User -->|HTTP :5173| F
+    F -->|API Proxy :8000| B
+    B -->|AsyncPG :5432| PG
+    PG --> PV
+    BS -->|seeds data| PG
+    B -->|API calls| G[Google Gemini API]
+    B -->|API calls| O[OpenAI API]
+```
+
+### Frontend Component Tree
+
+```mermaid
+graph TB
+    App[App.jsx] --> Router[React Router]
+    Router --> Layout[Layout / Navbar]
+
+    Layout --> Home[Home Page]
+    Layout --> Roadmaps[Roadmaps Browse]
+
+    Layout --> RoadmapDetail[Roadmap Detail]
+
+    Layout --> Learn[Learn / Node Detail]
+
+    Layout --> Dashboard[Dashboard]
+    Layout --> Login[Login]
+    Layout --> Register[Register]
+    Layout --> Admin[Admin Panel]
+
+    Home --> Hero[Hero Section]
+    Home --> CategoryGrid[Category Grid]
+
+    Roadmaps --> FilterBar[Filter by Category / Difficulty]
+    Roadmaps --> SearchBar[Search]
+    Roadmaps --> CardGrid[Roadmap Card Grid]
+
+    RoadmapDetail --> GraphView[Interactive Graph View]
+    RoadmapDetail --> NodeList[Sidebar Node List]
+    GraphView --> NodePopup[Node Popup]
+
+    Learn --> AIExplain[AI Explanation]
+    Learn --> AIQuiz[AI Quiz]
+    Learn --> AIPlan[Weekly Plan]
+    Learn --> Notes[User Notes]
+    Learn --> Resources[Resource Links]
+
+    Dashboard --> ProgressChart[Progress Chart]
+    Dashboard --> Streak[Streak Tracker]
+    Dashboard --> Enrolled[Enrolled Roadmaps]
+
+    subgraph State["Zustand State"]
+        AuthStore[Auth Store]
+    end
+
+    subgraph API["API Client Layer"]
+        Axios[Axios Instance]
+        Interceptors[JWT Interceptor]
+    end
+
+    Layout --> State
+    Layout --> API
+```
+
+### Error Handling & Middleware Flow
+
+```mermaid
+graph TD
+    Request[Incoming Request] --> CORS[CORS Middleware]
+    CORS --> Route[Route Matcher]
+
+    Route --> Auth{Requires Auth?}
+    Auth -->|Yes| JWT[JWT Bearer Extract]
+    Auth -->|No| Handler[Route Handler]
+
+    JWT --> Valid{Valid Token?}
+    Valid -->|Yes| Decode[Decode & Load User]
+    Valid -->|No| 401[401 Unauthorized]
+    401 --> Response[Error Response]
+
+    Decode --> Handler
+
+    Handler --> Success{Success?}
+    Success -->|Yes| 200[200 OK]
+    Success -->|No| Exception{Exception Type}
+
+    Exception -->|Validation| 422[422 Validation Error]
+    Exception -->|Not Found| 404[404 Not Found]
+    Exception -->|Auth Error| 401
+    Exception -->|Permission| 403[403 Forbidden]
+    Exception -->|DB Error| 500[500 Internal Error]
+
+    200 --> Response
+    422 --> Response
+    404 --> Response
+    401 --> Response
+    403 --> Response
+    500 --> Response
+```
+
+### Database Migration Strategy
+
+```mermaid
+graph LR
+    subgraph Dev["Development"]
+        A[Define Models] --> B[create_all on startup]
+        B --> C[Seed Data]
+    end
+
+    subgraph Prod["Production"]
+        D[Alembic Init] --> E[Generate Migration]
+        E --> F[Review & Edit]
+        F --> G[Apply Migration]
+        G --> H[Verify]
+    end
+
+    subgraph Seed["Data Seeding"]
+        I[GitHub API] --> J[Fetch roadmap.sh JSON]
+        J --> K[Parse React Flow Format]
+        K --> L[Insert Roadmaps]
+        K --> M[Insert Nodes]
+        K --> N[Insert Dependencies]
+    end
+```
+
+### Caching Strategy
+
+```mermaid
+graph TB
+    subgraph AI_Cache["AI Explanation Cache"]
+        Req[POST /explain-node] --> Check{Exists in DB?}
+        Check -->|Yes| Return[Return Cached Response]
+        Check -->|No| Gen[Call Gemini / OpenAI]
+        Gen --> Store[Save to ai_explanations table]
+        Store --> Return
+    end
+
+    subgraph DB_Cache["Database-Level"]
+        Q[Query] --> Pool[Connection Pool (20 connections)]
+        Pool --> PG[(PostgreSQL)]
+    end
+```
+
 ## Data Model
 
 ```mermaid
@@ -554,6 +725,176 @@ The AI service (`backend/app/services/ai_service.py`) uses structured prompts:
 | Weekly Plan     | `WEEKLY_PLAN_PROMPT` | 7-day learning schedule based on pace and completed nodes |
 
 Responses are **cached** in the `ai_explanations` table — subsequent requests for the same node return instantly.
+
+## Testing
+
+```mermaid
+graph LR
+    subgraph Test_Suite["Test Suite"]
+        Unit[Unit Tests] --> pytest
+        Integration[Integration Tests] --> pytest
+        API[API Tests] --> httpx
+        E2E[E2E Tests] --> Playwright
+    end
+
+    subgraph CI["CI Pipeline"]
+        Lint --> TypeCheck
+        TypeCheck --> Unit
+        Unit --> Integration
+        Integration --> Build
+    end
+```
+
+### Current Coverage
+
+| Layer       | Tool         | Status      |
+|-------------|--------------|-------------|
+| Backend     | pytest       | Not started |
+| API Routes  | httpx + pytest | Not started |
+| Frontend    | Vitest       | Not started |
+| E2E         | Playwright   | Not started |
+
+To run tests:
+
+```bash
+cd backend
+pytest                      # all backend tests
+pytest tests/ -v            # verbose
+pytest tests/test_routes/   # route tests only
+```
+
+## Security Considerations
+
+```mermaid
+graph TB
+    subgraph Security_Measures["Security Measures"]
+        P[Password] --> B[bcrypt hashing]
+        S[Session] --> J[JWT with expiry]
+        A[API Access] --> T[Token in Bearer header]
+        C[CORS] --> O[Origin whitelist]
+        D[Database] --> P2[Parameterized queries via SQLAlchemy]
+    end
+
+    subgraph Best_Practices["Production Recommendations"]
+        E[Environment] --> E1[Use strong JWT_SECRET]
+        E --> E2[Enable HTTPS]
+        E --> E3[Set short JWT expiry]
+        E --> E4[Rate limit AI endpoints]
+        E --> E5[Use connection pooling limits]
+    end
+```
+
+## Future Work
+
+### Short-term
+
+```mermaid
+graph LR
+    A[Fix Remaining Todos] --> B[Add Tests]
+    B --> C[API Error Refinement]
+    C --> D[Frontend Polish]
+```
+
+| Priority | Feature                          | Description                                           |
+|----------|----------------------------------|-------------------------------------------------------|
+| P0       | Backend tests                    | Unit + integration tests for all routes and services  |
+| P0       | Frontend tests                   | Component + page tests with Vitest                    |
+| P1       | E2E tests                        | Playwright tests for critical flows                   |
+| P1       | Rate limiting                    | Per-user and per-IP rate limits on AI endpoints       |
+| P1       | Input validation hardening       | Strict Pydantic validation on all request bodies      |
+| P2       | Error response standardization   | Consistent error shape across all endpoints           |
+| P2       | Logging infrastructure           | Structured logging with request IDs                   |
+
+### Medium-term
+
+```mermaid
+gantt
+    title Development Roadmap
+    dateFormat  YYYY-MM-DD
+    section Foundation
+    Test Suite           :done, 2025-06-01, 30d
+    CI/CD Pipeline       :active, 2025-06-15, 45d
+    Error Standardization :2025-07-01, 30d
+
+    section Features
+    Social Auth (Google/GitHub) :2025-07-15, 30d
+    Resource Library     :2025-08-01, 45d
+    User Notes & Bookmarks :2025-08-15, 30d
+    Progress Export (PDF) :2025-09-01, 30d
+
+    section AI
+    Streaming Responses  :2025-09-01, 30d
+    Multi-language Support :2025-09-15, 45d
+    Personalized Learning Paths :2025-10-01, 60d
+```
+
+| Priority | Feature                          | Description                                           |
+|----------|----------------------------------|-------------------------------------------------------|
+| P1       | Social OAuth (Google, GitHub)    | Sign in with existing accounts                         |
+| P1       | Resource library                 | Curated articles, videos, and courses per node         |
+| P2       | User notes & bookmarks           | Save personal notes and bookmark nodes                 |
+| P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
+| P2       | AI streaming responses           | Stream AI explanations token-by-token via SSE          |
+| P3       | Multi-language AI support        | Explain topics in Hindi, Spanish, etc.                 |
+
+### Long-term
+
+```mermaid
+graph TB
+    subgraph Long_Term["Future Architecture"]
+        direction TB
+
+        subgraph Platform
+            P1[Community Roadmaps]
+            P2[User-Generated Content]
+            P3[Roadmap Editor]
+        end
+
+        subgraph Intelligence
+            I1[Personalized Paths]
+            I2[Skill Gap Analysis]
+            I3[Adaptive Difficulty]
+        end
+
+        subgraph Scale
+            S1[Redis Cache Layer]
+            S2[CDN for Content]
+            S3[WebSocket Real-time]
+        end
+
+        subgraph Integration
+            Int1[GitHub Integration]
+            Int2[LinkedIn Integration]
+            Int3[VS Code Extension]
+        end
+
+        Platform --> Intelligence
+        Intelligence --> Scale
+        Scale --> Integration
+    end
+```
+
+| Priority | Feature                          | Description                                           |
+|----------|----------------------------------|-------------------------------------------------------|
+| P2       | Custom roadmap editor            | Drag-and-drop UI to create and share roadmaps          |
+| P2       | Community roadmaps               | User-submitted roadmaps with voting/curation           |
+| P3       | Skill gap analysis               | AI evaluates your profile and recommends missing skills |
+| P3       | Adaptive difficulty               | Roadmap nodes dynamically adjust to user pace          |
+| P3       | Redis caching layer              | Cache AI responses and frequent queries                |
+| P3       | WebSocket real-time sync          | Live progress updates across devices                   |
+| P3       | GitHub integration                | Import starred repos as resources                      |
+| P3       | VS Code extension                 | Learn without leaving your editor                      |
+| P3       | LinkedIn integration              | Export completed roadmaps to LinkedIn skills           |
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run linting and tests
+5. Commit (`git commit -m 'Add amazing feature'`)
+6. Push (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 
