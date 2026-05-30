@@ -7,6 +7,7 @@ from app.models.user import Profile
 from app.models.roadmap import Roadmap, RoadmapNode
 from app.models.feedback import Feedback
 from app.utils.db_helpers import parse_uuid
+from app.utils.pagination import PaginationParams
 
 router = APIRouter()
 
@@ -42,22 +43,34 @@ async def admin_stats(
 
 @router.get("/users")
 async def list_users(
+    pagination: PaginationParams = Depends(),
     user: Profile = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Profile).order_by(Profile.created_at.desc()))
+    total_q = select(func.count(Profile.id))
+    total = (await db.execute(total_q)).scalar() or 0
+
+    result = await db.execute(
+        select(Profile).order_by(Profile.created_at.desc())
+        .offset(pagination.offset).limit(pagination.per_page)
+    )
     users = result.scalars().all()
-    return [
-        {
-            "id": str(u.id),
-            "full_name": u.full_name,
-            "role": u.role,
-            "experience_level": u.experience_level,
-            "streak_days": u.streak_days,
-            "created_at": u.created_at.isoformat() if u.created_at else None,
-        }
-        for u in users
-    ]
+    return {
+        "items": [
+            {
+                "id": str(u.id),
+                "full_name": u.full_name,
+                "role": u.role,
+                "experience_level": u.experience_level,
+                "streak_days": u.streak_days,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in users
+        ],
+        "total": total,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+    }
 
 
 @router.patch("/users/{user_id}/role")
@@ -83,23 +96,35 @@ async def change_role(
 
 @router.get("/feedback")
 async def list_feedback(
+    pagination: PaginationParams = Depends(),
     user: Profile = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Feedback).order_by(Feedback.created_at.desc()))
+    total_q = select(func.count(Feedback.id))
+    total = (await db.execute(total_q)).scalar() or 0
+
+    result = await db.execute(
+        select(Feedback).order_by(Feedback.created_at.desc())
+        .offset(pagination.offset).limit(pagination.per_page)
+    )
     items = result.scalars().all()
-    return [
-        {
-            "id": str(f.id),
-            "user_id": str(f.user_id),
-            "node_id": str(f.node_id) if f.node_id else None,
-            "type": f.type,
-            "content": f.content,
-            "status": f.status,
-            "created_at": f.created_at.isoformat() if f.created_at else None,
-        }
-        for f in items
-    ]
+    return {
+        "items": [
+            {
+                "id": str(f.id),
+                "user_id": str(f.user_id),
+                "node_id": str(f.node_id) if f.node_id else None,
+                "type": f.type,
+                "content": f.content,
+                "status": f.status,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in items
+        ],
+        "total": total,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+    }
 
 
 @router.patch("/feedback/{feedback_id}")

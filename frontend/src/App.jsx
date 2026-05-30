@@ -1,16 +1,17 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import Navbar from './components/layout/Navbar'
-import HomePage from './pages/HomePage'
-import RoadmapsPage from './pages/RoadmapsPage'
-import RoadmapDetailPage from './pages/RoadmapDetailPage'
-import LearnPage from './pages/LearnPage'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
-import AdminPage from './pages/AdminPage'
 import LoadingSkeleton from './components/shared/LoadingSkeleton'
+
+const HomePage = lazy(() => import('./pages/HomePage'))
+const RoadmapsPage = lazy(() => import('./pages/RoadmapsPage'))
+const RoadmapDetailPage = lazy(() => import('./pages/RoadmapDetailPage'))
+const LearnPage = lazy(() => import('./pages/LearnPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
 
 function ProtectedRoute({ children }) {
   const { user, isLoading } = useAuthStore()

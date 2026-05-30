@@ -15,6 +15,7 @@ from app.schemas.roadmap import (
     ResourceCreate, ResourceRead,
 )
 from app.utils.db_helpers import parse_uuid, resolve_roadmap
+from app.utils.pagination import PaginationParams
 
 router = APIRouter()
 
@@ -32,6 +33,7 @@ async def list_roadmaps(
     category: Optional[str] = None,
     difficulty: Optional[str] = None,
     search: Optional[str] = None,
+    pagination: PaginationParams = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Roadmap).where(Roadmap.is_published == True)
@@ -41,20 +43,34 @@ async def list_roadmaps(
         query = query.where(Roadmap.difficulty == difficulty)
     if search:
         query = query.where(Roadmap.title.ilike(f"%{search}%"))
-    query = query.order_by(Roadmap.created_at.desc())
+
+    total_q = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(total_q)).scalar() or 0
+
+    query = query.order_by(Roadmap.created_at.desc()).offset(pagination.offset).limit(pagination.per_page)
     result = await db.execute(query)
     roadmaps = result.scalars().all()
 
-    enriched = []
-    for rm in roadmaps:
-        node_count_q = select(func.count(RoadmapNode.id)).where(RoadmapNode.roadmap_id == rm.id)
-        node_count = (await db.execute(node_count_q)).scalar() or 0
-        enriched.append(RoadmapRead(
+    # Batch-fetch node counts (single query instead of N+1)
+    if roadmaps:
+        roadmap_ids = [r.id for r in roadmaps]
+        count_q = select(
+            RoadmapNode.roadmap_id, func.count(RoadmapNode.id).label("nc")
+        ).where(RoadmapNode.roadmap_id.in_(roadmap_ids)).group_by(RoadmapNode.roadmap_id)
+        count_result = await db.execute(count_q)
+        node_counts = {row.roadmap_id: row.nc for row in count_result}
+    else:
+        node_counts = {}
+
+    enriched = [
+        RoadmapRead(
             id=rm.id, title=rm.title, slug=rm.slug, description=rm.description,
             category=rm.category, difficulty=rm.difficulty, estimated_hours=rm.estimated_hours,
             cover_image_url=rm.cover_image_url, is_published=rm.is_published,
-            created_at=rm.created_at, node_count=node_count,
-        ))
+            created_at=rm.created_at, node_count=node_counts.get(rm.id, 0),
+        )
+        for rm in roadmaps
+    ]
     return enriched
 
 
@@ -219,6 +235,16 @@ async def delete_node(
     node = result.scalar_one_or_none()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+
+    dep_check = await db.execute(
+        select(NodeDependency).where(NodeDependency.depends_on_node_id == uid)
+    )
+    if dep_check.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete node: other nodes depend on it. Remove dependencies first.",
+        )
+
     await db.delete(node)
     await db.commit()
 

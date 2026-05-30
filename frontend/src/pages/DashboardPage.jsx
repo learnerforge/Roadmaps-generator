@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { apiGet } from '../lib/api'
+import { apiGet, apiDownload } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
 
 export default function DashboardPage() {
@@ -19,10 +19,10 @@ export default function DashboardPage() {
       setError(null)
       const [summaryData, roadmapsData] = await Promise.all([
         apiGet('/progress/dashboard/summary'),
-        apiGet('/progress/my-roadmaps').catch(() => []),
+        apiGet('/progress/my-roadmaps').catch(() => ({ items: [] })),
       ])
       setSummary(summaryData)
-      setMyRoadmaps(roadmapsData)
+      setMyRoadmaps(roadmapsData.items || roadmapsData)
     } catch (err) {
       console.error('Failed to load dashboard:', err)
       setError(err.message)
@@ -97,30 +97,48 @@ export default function DashboardPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {myRoadmaps.map((item) => (
-                <Link
+                <div
                   key={item.roadmap.id}
-                  to={`/roadmap/${item.roadmap.slug}/learn`}
-                  className="group rounded-xl border border-border bg-bg-2 p-5 hover:border-accent/50 transition-colors"
+                  className="rounded-xl border border-border bg-bg-2 p-5 hover:border-accent/50 transition-colors"
                 >
-                  <h3 className="mb-2 text-sm font-semibold text-white group-hover:text-accent transition-colors">
-                    {item.roadmap.title}
-                  </h3>
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-bg-3 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-accent rounded-full transition-all"
-                        style={{ width: `${item.completion_pct || 0}%` }}
-                      />
+                  <Link
+                    to={`/roadmap/${item.roadmap.slug}/learn`}
+                    className="group block"
+                  >
+                    <h3 className="mb-2 text-sm font-semibold text-white group-hover:text-accent transition-colors">
+                      {item.roadmap.title}
+                    </h3>
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-bg-3 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-accent rounded-full transition-all"
+                          style={{ width: `${item.completion_pct || 0}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono text-text-3">
+                        {Math.round(item.completion_pct || 0)}%
+                      </span>
                     </div>
-                    <span className="text-[10px] font-mono text-text-3">
-                      {Math.round(item.completion_pct || 0)}%
-                    </span>
+                    <div className="flex items-center justify-between text-[10px] text-text-3">
+                      <span className="capitalize">{item.roadmap.category}</span>
+                      <span>Started {new Date(item.started_at).toLocaleDateString()}</span>
+                    </div>
+                  </Link>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => apiDownload(`/progress/export/${item.roadmap.slug}?format=json`, `${item.roadmap.slug}_progress.json`)}
+                      className="flex-1 rounded-lg border border-border px-3 py-1.5 text-[10px] text-text-3 hover:border-accent/50 hover:text-accent transition-colors"
+                    >
+                      Export JSON
+                    </button>
+                    <button
+                      onClick={() => apiDownload(`/progress/export/${item.roadmap.slug}?format=csv`, `${item.roadmap.slug}_progress.csv`)}
+                      className="flex-1 rounded-lg border border-border px-3 py-1.5 text-[10px] text-text-3 hover:border-accent/50 hover:text-accent transition-colors"
+                    >
+                      Export CSV
+                    </button>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-text-3">
-                    <span className="capitalize">{item.roadmap.category}</span>
-                    <span>Started {new Date(item.started_at).toLocaleDateString()}</span>
-                  </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}

@@ -1,7 +1,29 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { apiGet, apiPost } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
+
+function NodeCard({ node }) {
+  return (
+    <div className="rounded-lg border border-border bg-bg-2 p-4 hover:border-accent/30 transition-colors">
+      <div className="flex items-start justify-between">
+        <h3 className="text-sm font-medium text-white">{node.title}</h3>
+        {node.is_optional && (
+          <span className="rounded bg-amber-dim px-1.5 py-0.5 text-[9px] font-mono text-amber">
+            optional
+          </span>
+        )}
+      </div>
+      {node.description && (
+        <p className="mt-1 text-xs text-text-3 line-clamp-2">{node.description}</p>
+      )}
+      <div className="mt-2 flex items-center gap-3 text-[10px] text-text-3">
+        <span>{node.difficulty || 'beginner'}</span>
+        <span>{node.estimated_hours ?? 2}h</span>
+      </div>
+    </div>
+  )
+}
 
 export default function RoadmapDetailPage() {
   const { slug } = useParams()
@@ -120,42 +142,46 @@ export default function RoadmapDetailPage() {
         </div>
 
         {/* Node Map */}
-        {categories.length > 0 ? (
-          <div className="space-y-8">
-            {categories.map((cat) => (
-              <div key={cat}>
-                <h2 className="mb-4 text-sm font-semibold text-accent uppercase tracking-wider">
-                  {cat}
-                </h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {nodes
-                    .filter((n) => n.category === cat)
-                    .map((node) => (
-                      <div
-                        key={node.id}
-                        className="rounded-lg border border-border bg-bg-2 p-4 hover:border-accent/30 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <h3 className="text-sm font-medium text-white">{node.title}</h3>
-                          {node.is_optional && (
-                            <span className="rounded bg-amber-dim px-1.5 py-0.5 text-[9px] font-mono text-amber">
-                              optional
-                            </span>
-                          )}
-                        </div>
-                        {node.description && (
-                          <p className="mt-1 text-xs text-text-3 line-clamp-2">{node.description}</p>
-                        )}
-                        <div className="mt-2 flex items-center gap-3 text-[10px] text-text-3">
-                          <span>{node.difficulty}</span>
-                          <span>{node.estimated_hours}h</span>
-                        </div>
-                      </div>
-                    ))}
+        {nodes.length > 0 ? (
+          categories.length > 0 ? (
+            <div className="space-y-8">
+              {categories.map((cat) => (
+                <div key={cat}>
+                  <h2 className="mb-4 text-sm font-semibold text-accent uppercase tracking-wider">
+                    {cat}
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {nodes
+                      .filter((n) => n.category === cat)
+                      .map((node) => (
+                        <NodeCard key={node.id} node={node} />
+                      ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+              {/* Show un-categorized nodes at the bottom if any */}
+              {nodes.some((n) => !n.category) && (
+                <div>
+                  <h2 className="mb-4 text-sm font-semibold text-text-3 uppercase tracking-wider">
+                    General
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {nodes
+                      .filter((n) => !n.category)
+                      .map((node) => (
+                        <NodeCard key={node.id} node={node} />
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {nodes.map((node) => (
+                <NodeCard key={node.id} node={node} />
+              ))}
+            </div>
+          )
         ) : (
           <div className="rounded-xl border border-border bg-bg-2 p-8 text-center text-text-3">
             No topics added to this roadmap yet.

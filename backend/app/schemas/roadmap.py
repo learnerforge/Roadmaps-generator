@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
@@ -37,8 +37,7 @@ class RoadmapRead(BaseModel):
     created_at: datetime
     node_count: Optional[int] = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NodeCreate(BaseModel):
@@ -94,8 +93,7 @@ class NodeRead(BaseModel):
     estimated_hours: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NodeWithStatus(NodeRead):
@@ -120,5 +118,4 @@ class ResourceRead(BaseModel):
     is_free: bool
     is_recommended: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

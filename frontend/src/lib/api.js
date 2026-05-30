@@ -3,7 +3,8 @@ export const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 async function handleResponse(res) {
   if (res.status === 401) {
     localStorage.removeItem('token')
-    window.location.href = '/login'
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
+    window.location.href = `/login?redirect=${returnUrl}`
     throw new Error('Session expired. Please log in again.')
   }
   if (!res.ok) {
@@ -13,21 +14,36 @@ async function handleResponse(res) {
   return res.status === 204 ? null : res.json()
 }
 
-export async function apiGet(path) {
+async function fetchWithRetry(url, options, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options)
+      return res
+    } catch (err) {
+      if (i === retries) throw err
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
+    }
+  }
+}
+
+function authHeaders() {
   const token = localStorage.getItem('token')
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+export async function apiGet(path) {
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
+    headers: authHeaders(),
   })
   return handleResponse(res)
 }
 
 export async function apiPost(path, body) {
-  const token = localStorage.getItem('token')
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   })
@@ -35,12 +51,11 @@ export async function apiPost(path, body) {
 }
 
 export async function apiPatch(path, body) {
-  const token = localStorage.getItem('token')
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeaders(),
     },
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -48,10 +63,28 @@ export async function apiPatch(path, body) {
 }
 
 export async function apiDelete(path) {
-  const token = localStorage.getItem('token')
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
     method: 'DELETE',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: authHeaders(),
   })
   return handleResponse(res)
+}
+
+export async function apiDownload(path, filename) {
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Download failed' }))
+    throw new Error(err.detail || 'Download failed')
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }

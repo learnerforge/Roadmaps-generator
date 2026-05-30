@@ -5,12 +5,17 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: pathforge
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   backend:
@@ -22,9 +27,10 @@ services:
     environment:
       APP_NAME: PathForge AI
       APP_VERSION: 1.0.0
-      DEBUG: "true"
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathforge
-      JWT_SECRET: pathforge-dev-secret-do-not-use-in-production
+      DEBUG: "false"
+      PRODUCTION: "1"
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/pathforge
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Set it in .env or shell environment}
       JWT_ALGORITHM: HS256
       JWT_EXPIRY_MINUTES: "60"
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -34,9 +40,10 @@ services:
       CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./backend:/app
+      - /app/__pycache__
     restart: unless-stopped
 
   frontend:
@@ -49,9 +56,6 @@ services:
       VITE_API_BASE: /api
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     restart: unless-stopped
 
 volumes:

@@ -9,7 +9,7 @@ from app.models.roadmap import Roadmap, RoadmapNode, NodeDependency
 from app.models.user import Profile
 from sqlalchemy import select
 
-REPO = "kamranahmedse/developer-roadmap"
+REPO = "nilbuild/developer-roadmap"
 BRANCH = "master"
 RAW_BASE = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/src/data/roadmaps"
 API_BASE = f"https://api.github.com/repos/{REPO}/contents/src/data/roadmaps"
@@ -163,9 +163,9 @@ async def seed():
             nodes_data = data.get("nodes", [])
             edges_data = data.get("edges", [])
 
-            topic_nodes = [n for n in nodes_data if n.get("type") == "topic"]
+            topic_nodes = [n for n in nodes_data if n.get("type") in ("topic", "subtopic")]
             if not topic_nodes:
-                print(f"  Skipping {slug} (no topic nodes)")
+                print(f"  Skipping {slug} (no topic/subtopic nodes)")
                 continue
 
             roadmap = Roadmap(

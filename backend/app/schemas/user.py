@@ -1,17 +1,17 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
 
 class UserRegister(BaseModel):
-    email: str
-    password: str
-    full_name: str
+    email: EmailStr
+    password: str = Field(..., min_length=6, max_length=128)
+    full_name: str = Field(..., min_length=1, max_length=100)
 
 
 class UserLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -31,6 +31,11 @@ class ProfileUpdate(BaseModel):
     avatar_url: Optional[str] = None
 
 
+class SocialLogin(BaseModel):
+    provider: str = Field(..., pattern="^(google|github)$")
+    token: str
+
+
 class ProfileRead(BaseModel):
     id: UUID
     email: str
@@ -46,5 +51,4 @@ class ProfileRead(BaseModel):
     streak_days: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

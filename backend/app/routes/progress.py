@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete as sa_delete
 from app.db.session import get_db
@@ -8,6 +11,7 @@ from app.models.roadmap import Roadmap, RoadmapNode
 from app.models.progress import UserRoadmap, UserNodeProgress
 from app.schemas.progress import NodeProgressUpdate, DashboardSummary
 from app.utils.db_helpers import parse_uuid, resolve_roadmap
+from app.utils.pagination import PaginationParams
 from datetime import datetime, timezone
 
 router = APIRouter()
@@ -120,8 +124,6 @@ async def update_node_status(
         )
         db.add(progress)
 
-    await db.commit()
-
     total_q = select(func.count(RoadmapNode.id)).where(RoadmapNode.roadmap_id == node.roadmap_id)
     total = (await db.execute(total_q)).scalar() or 0
 
@@ -145,7 +147,8 @@ async def update_node_status(
         ur.completion_pct = pct
         if pct >= 100:
             ur.completed_at = datetime.now(timezone.utc)
-        await db.commit()
+
+    await db.commit()
 
     return {"status": data.status, "completion_pct": pct, "node_id": node_id}
 
@@ -174,27 +177,93 @@ async def get_dashboard(
 
 @router.get("/my-roadmaps")
 async def my_roadmaps(
+    pagination: PaginationParams = Depends(),
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    total_q = select(func.count(UserRoadmap.roadmap_id)).where(UserRoadmap.user_id == user.id)
+    total = (await db.execute(total_q)).scalar() or 0
+
     result = await db.execute(
         select(UserRoadmap, Roadmap)
         .join(Roadmap, UserRoadmap.roadmap_id == Roadmap.id)
         .where(UserRoadmap.user_id == user.id)
+        .order_by(UserRoadmap.started_at.desc())
+        .offset(pagination.offset).limit(pagination.per_page)
     )
     rows = result.all()
-    return [
+    return {
+        "items": [
+            {
+                "roadmap": {
+                    "id": str(rm.id),
+                    "title": rm.title,
+                    "slug": rm.slug,
+                    "category": rm.category,
+                    "cover_image_url": rm.cover_image_url,
+                },
+                "started_at": ur.started_at.isoformat() if ur.started_at else None,
+                "completion_pct": ur.completion_pct,
+                "is_pinned": ur.is_pinned,
+            }
+            for ur, rm in rows
+        ],
+        "total": total,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+    }
+
+
+@router.get("/export/{roadmap_ref}")
+async def export_progress(
+    roadmap_ref: str,
+    format: str = Query("json", pattern="^(json|csv)$"),
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    roadmap = await resolve_roadmap(db, roadmap_ref)
+    nodes_result = await db.execute(
+        select(RoadmapNode)
+        .where(RoadmapNode.roadmap_id == roadmap.id)
+        .order_by(RoadmapNode.order_index)
+    )
+    nodes = nodes_result.scalars().all()
+
+    progress_result = await db.execute(
+        select(UserNodeProgress).where(
+            UserNodeProgress.user_id == user.id,
+            UserNodeProgress.roadmap_id == roadmap.id,
+        )
+    )
+    progress_map = {p.node_id: p.status for p in progress_result.scalars().all()}
+
+    node_data = [
         {
-            "roadmap": {
-                "id": str(rm.id),
-                "title": rm.title,
-                "slug": rm.slug,
-                "category": rm.category,
-                "cover_image_url": rm.cover_image_url,
-            },
-            "started_at": ur.started_at.isoformat() if ur.started_at else None,
-            "completion_pct": ur.completion_pct,
-            "is_pinned": ur.is_pinned,
+            "title": n.title,
+            "category": n.category or "",
+            "difficulty": n.difficulty,
+            "estimated_hours": n.estimated_hours,
+            "status": progress_map.get(n.id, "pending"),
         }
-        for ur, rm in rows
+        for n in nodes
     ]
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=["title", "category", "difficulty", "estimated_hours", "status"])
+        writer.writeheader()
+        writer.writerows(node_data)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={roadmap.slug}_progress.csv"},
+        )
+
+    return {
+        "roadmap": roadmap.title,
+        "slug": roadmap.slug,
+        "total_nodes": len(nodes),
+        "completed": sum(1 for d in node_data if d["status"] == "done"),
+        "progress": node_data,
+    }

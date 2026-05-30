@@ -9,6 +9,7 @@ from app.db.session import init_db
 from app.routes import auth, auth_register, roadmaps, progress, ai, admin, content
 from app.middleware.logging import RequestLoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.error_handlers import (
     http_exception_handler,
     validation_exception_handler,
@@ -43,10 +44,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin"],
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
@@ -65,4 +67,4 @@ app.include_router(content.router, prefix="/api/content", tags=["Content"])
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+    return {"status": "ok", "app": settings.APP_NAME}

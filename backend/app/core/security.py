@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
@@ -27,8 +28,10 @@ def create_token(user_id: str, role: str = "user") -> str:
     payload = {
         "sub": user_id,
         "role": role,
+        "jti": str(uuid.uuid4()),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRY_MINUTES),
         "iat": datetime.now(timezone.utc),
+        "nbf": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 

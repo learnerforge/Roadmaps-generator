@@ -49,7 +49,8 @@ async def explain_node(
         node_id=data.node_id,
         prompt_type="explain",
         response_text=explanation,
-        model_used="gemini/openai",
+        model_used="gemini",
+        openai_fallback=False,
     )
     db.add(ai_exp)
     await db.commit()
@@ -84,7 +85,8 @@ async def simplify_node(
         node_id=data.node_id,
         prompt_type="simplify",
         response_text=result,
-        model_used="gemini/openai",
+        model_used="gemini",
+        openai_fallback=False,
     )
     db.add(ai_exp)
     await db.commit()

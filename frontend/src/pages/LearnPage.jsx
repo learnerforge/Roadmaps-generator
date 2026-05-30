@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { apiGet, apiPost, apiPatch } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
 
@@ -20,6 +20,8 @@ export default function LearnPage() {
   const [selectedNode, setSelectedNode] = useState(null)
   const [aiExplanation, setAiExplanation] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  const [resources, setResources] = useState([])
+  const [resourcesLoading, setResourcesLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [updateError, setUpdateError] = useState(null)
@@ -60,6 +62,24 @@ export default function LearnPage() {
       console.error('Failed to update:', err)
       setUpdateError('Failed to update status. Please try again.')
     }
+  }
+
+  const loadResources = async (nodeId) => {
+    setResourcesLoading(true)
+    try {
+      const data = await apiGet(`/roadmaps/nodes/${nodeId}/resources`)
+      setResources(data || [])
+    } catch {
+      setResources([])
+    } finally {
+      setResourcesLoading(false)
+    }
+  }
+
+  const handleNodeSelect = (node) => {
+    setSelectedNode(node)
+    setAiExplanation('')
+    loadResources(node.id)
   }
 
   const handleExplain = async (nodeId) => {
@@ -133,7 +153,7 @@ export default function LearnPage() {
             return (
               <button
                 key={node.id}
-                onClick={() => { setSelectedNode(node); setAiExplanation(''); }}
+                onClick={() => handleNodeSelect(node)}
                 className={`w-full text-left rounded-lg border p-3 mb-1.5 text-xs transition-all ${
                   selectedNode?.id === node.id
                     ? 'border-accent bg-accent-glow'
@@ -226,7 +246,38 @@ export default function LearnPage() {
             {/* Resources */}
             <div className="rounded-xl border border-border bg-bg-2 p-5">
               <h3 className="mb-3 text-xs font-semibold text-accent uppercase tracking-wider">Resources</h3>
-              <p className="text-xs text-text-3">Resources will be available once added by an admin.</p>
+              {resourcesLoading ? (
+                <div className="flex items-center gap-3 py-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                  <span className="text-xs text-text-3">Loading resources...</span>
+                </div>
+              ) : resources.length === 0 ? (
+                <p className="text-xs text-text-3">No resources available for this topic yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {resources.map((r) => (
+                    <a
+                      key={r.id}
+                      href={r.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-lg border border-border p-3 hover:border-accent/50 transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white group-hover:text-accent transition-colors truncate">
+                          {r.title}
+                        </p>
+                        <p className="text-[10px] text-text-3 mt-0.5">
+                          {r.type}{r.is_free ? ' • Free' : ''}{r.is_recommended ? ' • Recommended' : ''}
+                        </p>
+                      </div>
+                      <svg className="h-4 w-4 shrink-0 text-text-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (

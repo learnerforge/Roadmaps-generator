@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, func, delete as sa_delete
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.models.user import Profile
@@ -8,21 +8,34 @@ from app.models.roadmap import RoadmapNode
 from app.models.feedback import Feedback
 from app.models.content import Note, Bookmark
 from app.utils.db_helpers import parse_uuid
+from app.utils.pagination import PaginationParams
 from app.schemas.progress import FeedbackCreate, FeedbackRead, NoteCreate, NoteRead, BookmarkToggleResponse
 from datetime import datetime, timezone
 
 router = APIRouter()
 
 
-@router.get("/feedback", response_model=list[FeedbackRead])
+@router.get("/feedback")
 async def list_my_feedback(
+    pagination: PaginationParams = Depends(),
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    total_q = select(func.count(Feedback.id)).where(Feedback.user_id == user.id)
+    total = (await db.execute(total_q)).scalar() or 0
+
     result = await db.execute(
-        select(Feedback).where(Feedback.user_id == user.id).order_by(Feedback.created_at.desc())
+        select(Feedback).where(Feedback.user_id == user.id)
+        .order_by(Feedback.created_at.desc())
+        .offset(pagination.offset).limit(pagination.per_page)
     )
-    return result.scalars().all()
+    items = result.scalars().all()
+    return {
+        "items": items,
+        "total": total,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+    }
 
 
 @router.post("/feedback", response_model=FeedbackRead, status_code=status.HTTP_201_CREATED)

@@ -75,13 +75,15 @@ Keep the plan realistic. Do not overload any single day."""
 
 async def call_gemini(prompt: str) -> str:
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(settings.GEMINI_MODEL)
-        response = model.generate_content(prompt)
+        import google.genai as genai
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = await client.aio.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=prompt,
+        )
         return response.text
     except Exception as e:
-        raise Exception(f"Gemini API error: {str(e)}")
+        raise RuntimeError(f"Gemini API error: {str(e)}")
 
 
 async def call_openai(prompt: str) -> str:
@@ -96,7 +98,7 @@ async def call_openai(prompt: str) -> str:
         )
         return response.choices[0].message.content
     except Exception as e:
-        raise Exception(f"OpenAI API error: {str(e)}")
+        raise RuntimeError(f"OpenAI API error: {str(e)}")
 
 
 async def call_ai(prompt: str) -> str:
@@ -109,7 +111,7 @@ async def call_ai(prompt: str) -> str:
             raise
     elif settings.OPENAI_API_KEY:
         return await call_openai(prompt)
-    raise Exception("No AI API key configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env")
+    raise RuntimeError("No AI API key configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env")
 
 
 async def explain_topic(
