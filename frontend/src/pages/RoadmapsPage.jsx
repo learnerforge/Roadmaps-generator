@@ -11,6 +11,7 @@ const CATEGORIES = [
 export default function RoadmapsPage() {
   const [roadmaps, setRoadmaps] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
 
@@ -20,10 +21,12 @@ export default function RoadmapsPage() {
 
   const loadRoadmaps = async () => {
     try {
+      setError(null)
       const data = await apiGet('/roadmaps')
       setRoadmaps(data)
     } catch (err) {
       console.error('Failed to load roadmaps:', err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -87,6 +90,16 @@ export default function RoadmapsPage() {
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          </div>
+        ) : error ? (
+          <div className="py-20 text-center">
+            <p className="mb-2 text-red">{error}</p>
+            <button
+              onClick={() => { setLoading(true); setError(null); loadRoadmaps() }}
+              className="text-sm text-accent hover:underline"
+            >
+              Try again
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center text-text-3">

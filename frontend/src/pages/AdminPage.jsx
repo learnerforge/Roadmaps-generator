@@ -7,6 +7,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([])
   const [feedback, setFeedback] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     loadAdminData()
@@ -14,6 +15,7 @@ export default function AdminPage() {
 
   const loadAdminData = async () => {
     try {
+      setError(null)
       const [statsData, usersData, feedbackData] = await Promise.all([
         apiGet('/admin/stats'),
         apiGet('/admin/users').catch(() => []),
@@ -24,6 +26,7 @@ export default function AdminPage() {
       setFeedback(feedbackData)
     } catch (err) {
       console.error('Failed to load admin data:', err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -33,6 +36,22 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (error && !stats) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="mb-2 text-red">{error}</p>
+          <button
+            onClick={() => { setLoading(true); setError(null); loadAdminData() }}
+            className="text-sm text-accent hover:underline"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     )
   }
@@ -80,34 +99,38 @@ export default function AdminPage() {
         {/* Users Tab */}
         {tab === 'users' && (
           <div className="rounded-xl border border-border bg-bg-2 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-bg-3">
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Name</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Role</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Level</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Streak</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 text-text">{u.full_name}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded bg-accent-glow px-2 py-0.5 text-[10px] font-mono text-accent">
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-text-2 capitalize">{u.experience_level}</td>
-                    <td className="px-4 py-3 text-text-2">{u.streak_days}</td>
-                    <td className="px-4 py-3 text-text-3 text-xs">
-                      {u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}
-                    </td>
+            {users.length === 0 ? (
+              <div className="p-8 text-center text-text-3">No users found.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-bg-3">
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Name</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Role</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Level</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Streak</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase text-text-3">Joined</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 text-text">{u.full_name}</td>
+                      <td className="px-4 py-3">
+                        <span className="rounded bg-accent-glow px-2 py-0.5 text-[10px] font-mono text-accent">
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-text-2 capitalize">{u.experience_level}</td>
+                      <td className="px-4 py-3 text-text-2">{u.streak_days}</td>
+                      <td className="px-4 py-3 text-text-3 text-xs">
+                        {u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 

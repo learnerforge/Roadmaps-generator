@@ -33,6 +33,7 @@ class ProfileUpdate(BaseModel):
 
 class ProfileRead(BaseModel):
     id: UUID
+    email: str
     full_name: str
     avatar_url: Optional[str] = None
     bio: Optional[str] = None

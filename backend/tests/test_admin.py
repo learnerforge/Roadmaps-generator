@@ -27,26 +27,26 @@ class TestAdminUsers:
         assert len(data) >= 1
 
     async def test_change_role(self, client: AsyncClient, super_admin_headers: dict, test_user):
-        resp = await client.patch(f"/api/admin/users/{test_user.id}", headers=super_admin_headers, json={
+        resp = await client.patch(f"/api/admin/users/{test_user.id}/role", headers=super_admin_headers, json={
             "role": "admin",
         })
         assert resp.status_code == 200
         assert resp.json()["new_role"] == "admin"
 
     async def test_change_role_not_super_admin(self, client: AsyncClient, admin_headers: dict, test_user):
-        resp = await client.patch(f"/api/admin/users/{test_user.id}", headers=admin_headers, json={
+        resp = await client.patch(f"/api/admin/users/{test_user.id}/role", headers=admin_headers, json={
             "role": "admin",
         })
         assert resp.status_code == 403
 
     async def test_change_role_invalid_uuid(self, client: AsyncClient, super_admin_headers: dict):
-        resp = await client.patch("/api/admin/users/bad-uuid", headers=super_admin_headers, json={
+        resp = await client.patch("/api/admin/users/bad-uuid/role", headers=super_admin_headers, json={
             "role": "admin",
         })
         assert resp.status_code == 400
 
     async def test_change_role_not_found(self, client: AsyncClient, super_admin_headers: dict):
-        resp = await client.patch("/api/admin/users/00000000-0000-0000-0000-000000000000", headers=super_admin_headers, json={
+        resp = await client.patch("/api/admin/users/00000000-0000-0000-0000-000000000000/role", headers=super_admin_headers, json={
             "role": "admin",
         })
         assert resp.status_code == 404
@@ -58,12 +58,12 @@ class TestFeedback:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
-    async def test_update_feedback_status(self, client: AsyncClient, admin_headers: dict, db):
+    async def test_update_feedback_status(self, client: AsyncClient, admin_headers: dict, test_admin, db):
         from app.models.feedback import Feedback
         import uuid
         fb = Feedback(
             id=uuid.uuid4(),
-            user_id=uuid.uuid4(),
+            user_id=test_admin.id,
             content="Test feedback",
             type="general",
             status="open",

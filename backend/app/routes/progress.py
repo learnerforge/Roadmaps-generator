@@ -1,38 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete as sa_delete
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.models.user import Profile
 from app.models.roadmap import Roadmap, RoadmapNode
 from app.models.progress import UserRoadmap, UserNodeProgress
 from app.schemas.progress import NodeProgressUpdate, DashboardSummary
+from app.utils.db_helpers import parse_uuid, resolve_roadmap
 from datetime import datetime, timezone
-import uuid as uuid_lib
 
 router = APIRouter()
 
 
-def parse_uuid(val: str, name: str = "id"):
-    try:
-        return uuid_lib.UUID(val)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid {name}: {val}")
-
-
-async def resolve_roadmap(db: AsyncSession, roadmap_ref: str):
-    try:
-        uid = uuid_lib.UUID(roadmap_ref)
-        result = await db.execute(select(Roadmap).where(Roadmap.id == uid))
-    except ValueError:
-        result = await db.execute(select(Roadmap).where(Roadmap.slug == roadmap_ref))
-    roadmap = result.scalar_one_or_none()
-    if not roadmap:
-        raise HTTPException(status_code=404, detail="Roadmap not found")
-    return roadmap
-
-
-@router.post("/{roadmap_ref}/start")
+@router.post("/{roadmap_ref}/start", status_code=status.HTTP_201_CREATED)
 async def start_roadmap(
     roadmap_ref: str,
     user: Profile = Depends(get_current_user),
@@ -52,6 +33,33 @@ async def start_roadmap(
     db.add(user_roadmap)
     await db.commit()
     return {"message": "Enrolled successfully"}
+
+
+@router.delete("/{roadmap_ref}/unenroll", status_code=status.HTTP_204_NO_CONTENT)
+async def unenroll_roadmap(
+    roadmap_ref: str,
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    roadmap = await resolve_roadmap(db, roadmap_ref)
+    result = await db.execute(
+        select(UserRoadmap).where(
+            UserRoadmap.user_id == user.id,
+            UserRoadmap.roadmap_id == roadmap.id,
+        )
+    )
+    ur = result.scalar_one_or_none()
+    if not ur:
+        raise HTTPException(status_code=404, detail="Not enrolled in this roadmap")
+
+    await db.execute(
+        sa_delete(UserNodeProgress).where(
+            UserNodeProgress.user_id == user.id,
+            UserNodeProgress.roadmap_id == roadmap.id,
+        )
+    )
+    await db.delete(ur)
+    await db.commit()
 
 
 @router.get("/{roadmap_ref}/progress")

@@ -8,7 +8,7 @@ class Quiz(Base):
     __tablename__ = "quizzes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    node_id = Column(UUID(as_uuid=True), ForeignKey("roadmap_nodes.id"), nullable=False, index=True)
+    node_id = Column(UUID(as_uuid=True), ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     question = Column(Text, nullable=False)
     options = Column(JSONB, nullable=False)
     correct_answer = Column(String(10), nullable=False)
@@ -20,8 +20,8 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False, index=True)
-    node_id = Column(UUID(as_uuid=True), ForeignKey("roadmap_nodes.id"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    node_id = Column(UUID(as_uuid=True), ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     score = Column(Integer, nullable=False)
     answers = Column(JSONB, nullable=True)
     taken_at = Column(DateTime(timezone=True), server_default=func.now())

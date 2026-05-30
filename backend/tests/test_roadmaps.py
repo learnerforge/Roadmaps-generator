@@ -10,8 +10,9 @@ class TestListRoadmaps:
         assert len(data) >= 1
         assert data[0]["slug"] == "test-roadmap"
 
-    async def test_list_empty_when_none_published(self, client: AsyncClient, test_roadmap):
+    async def test_list_empty_when_none_published(self, client: AsyncClient, test_roadmap, db):
         test_roadmap.is_published = False
+        await db.commit()
         resp = await client.get("/api/roadmaps")
         assert resp.status_code == 200
         assert len(resp.json()) == 0
@@ -117,7 +118,7 @@ class TestCreateRoadmapAdmin:
             "category": "skill-based",
             "difficulty": "intermediate",
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         assert resp.json()["slug"] == "new-roadmap"
 
     async def test_create_roadmap_duplicate_slug(self, client: AsyncClient, admin_headers: dict, test_roadmap):
@@ -157,8 +158,7 @@ class TestUpdateDeleteRoadmap:
 
     async def test_delete_roadmap(self, client: AsyncClient, admin_headers: dict, test_roadmap):
         resp = await client.delete(f"/api/roadmaps/{test_roadmap.id}", headers=admin_headers)
-        assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        assert resp.status_code == 204
 
 
 class TestNodesCRUD:
@@ -168,7 +168,7 @@ class TestNodesCRUD:
             "order_index": 5,
             "node_type": "topic",
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         assert resp.json()["title"] == "New Node"
 
     async def test_update_node(self, client: AsyncClient, admin_headers: dict, test_roadmap_nodes):
@@ -182,8 +182,7 @@ class TestNodesCRUD:
     async def test_delete_node(self, client: AsyncClient, admin_headers: dict, test_roadmap_nodes):
         node = test_roadmap_nodes[0]
         resp = await client.delete(f"/api/roadmaps/nodes/{node.id}", headers=admin_headers)
-        assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        assert resp.status_code == 204
 
 
 class TestResources:
@@ -194,7 +193,7 @@ class TestResources:
             "url": "https://example.com",
             "type": "article",
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         assert resp.json()["title"] == "Test Resource"
 
     async def test_delete_resource(self, client: AsyncClient, admin_headers: dict, test_roadmap_nodes):
@@ -206,5 +205,4 @@ class TestResources:
         })
         rid = create.json()["id"]
         resp = await client.delete(f"/api/roadmaps/resources/{rid}", headers=admin_headers)
-        assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        assert resp.status_code == 204

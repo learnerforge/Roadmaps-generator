@@ -9,7 +9,7 @@ class TestRegister:
             "password": "newpass123",
             "full_name": "New User",
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         data = resp.json()
         assert "access_token" in data
         assert data["token_type"] == "bearer"
@@ -28,7 +28,7 @@ class TestRegister:
             "password": "pass456",
             "full_name": "Second",
         })
-        assert resp.status_code == 400
+        assert resp.status_code == 409
         assert "already registered" in resp.json()["detail"].lower()
 
     async def test_register_missing_fields(self, client: AsyncClient):

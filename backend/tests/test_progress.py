@@ -5,12 +5,12 @@ from httpx import AsyncClient
 class TestEnroll:
     async def test_start_roadmap(self, client: AsyncClient, auth_headers: dict, test_roadmap):
         resp = await client.post(f"/api/progress/{test_roadmap.slug}/start", headers=auth_headers)
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         assert "enrolled" in resp.json()["message"].lower()
 
     async def test_start_roadmap_already_enrolled(self, client: AsyncClient, auth_headers: dict, enrolled_roadmap, test_roadmap):
         resp = await client.post(f"/api/progress/{test_roadmap.slug}/start", headers=auth_headers)
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         assert "already" in resp.json()["message"].lower()
 
     async def test_start_roadmap_not_found(self, client: AsyncClient, auth_headers: dict):

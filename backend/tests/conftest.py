@@ -1,4 +1,5 @@
 import asyncio
+import os
 import uuid
 from typing import AsyncGenerator
 
@@ -20,7 +21,10 @@ from app.models.quiz import Quiz, QuizAttempt
 from app.models.resource import Resource
 from app.models.feedback import Feedback
 
-TEST_DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge_test"
+TEST_DB_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge_test",
+)
 
 test_settings = get_settings()
 test_settings.DATABASE_URL = TEST_DB_URL

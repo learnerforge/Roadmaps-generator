@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState(null)
   const [myRoadmaps, setMyRoadmaps] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     loadDashboard()
@@ -15,6 +16,7 @@ export default function DashboardPage() {
 
   const loadDashboard = async () => {
     try {
+      setError(null)
       const [summaryData, roadmapsData] = await Promise.all([
         apiGet('/progress/dashboard/summary'),
         apiGet('/progress/my-roadmaps').catch(() => []),
@@ -23,6 +25,7 @@ export default function DashboardPage() {
       setMyRoadmaps(roadmapsData)
     } catch (err) {
       console.error('Failed to load dashboard:', err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -32,6 +35,22 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (error && !summary) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="mb-2 text-red">{error}</p>
+          <button
+            onClick={() => { setLoading(true); setError(null); loadDashboard() }}
+            className="text-sm text-accent hover:underline"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     )
   }

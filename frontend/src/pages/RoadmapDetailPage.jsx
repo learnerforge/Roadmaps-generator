@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { apiGet, apiPost } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
 
 export default function RoadmapDetailPage() {
   const { slug } = useParams()
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [roadmap, setRoadmap] = useState(null)
   const [nodes, setNodes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [enrolling, setEnrolling] = useState(false)
+  const [enrollError, setEnrollError] = useState(null)
 
   useEffect(() => {
     loadRoadmap()
@@ -17,11 +20,13 @@ export default function RoadmapDetailPage() {
 
   const loadRoadmap = async () => {
     try {
+      setError(null)
       const data = await apiGet(`/roadmaps/${slug}`)
       setRoadmap(data.roadmap)
       setNodes(data.nodes || [])
     } catch (err) {
       console.error('Failed to load roadmap:', err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -29,15 +34,17 @@ export default function RoadmapDetailPage() {
 
   const handleStart = async () => {
     if (!user) {
-      window.location.href = '/login'
+      navigate('/login')
       return
     }
     setEnrolling(true)
+    setEnrollError(null)
     try {
       await apiPost(`/progress/${roadmap.id}/start`)
-      window.location.href = `/roadmap/${slug}/learn`
+      navigate(`/roadmap/${slug}/learn`)
     } catch (err) {
       console.error('Failed to start roadmap:', err)
+      setEnrollError(err.message)
     } finally {
       setEnrolling(false)
     }
@@ -47,6 +54,22 @@ export default function RoadmapDetailPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="mb-2 text-red">{error}</p>
+          <button
+            onClick={() => { setLoading(true); setError(null); loadRoadmap() }}
+            className="text-sm text-accent hover:underline"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     )
   }
@@ -91,6 +114,9 @@ export default function RoadmapDetailPage() {
             </button>
             <span className="text-xs text-text-3">{nodes.length} topics</span>
           </div>
+          {enrollError && (
+            <p className="mt-2 text-sm text-red">{enrollError}</p>
+          )}
         </div>
 
         {/* Node Map */}

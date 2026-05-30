@@ -5,13 +5,14 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 ## Features
 
 - **76+ Role & Skill Roadmaps** — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
-- **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms
+- **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node
 - **Adaptive Quizzes** — Generate multiple-choice questions per topic to test understanding
 - **Project Suggestions** — Get coding project ideas based on completed topics
 - **Weekly Learning Plans** — AI generates a 7-day study schedule based on your pace
-- **Progress Tracking** — Mark nodes complete, track completion %, dashboard with streaks
-- **Node Dependencies** — Visual dependency graph showing prerequisites and follow-up topics
-- **User Auth** — Email/password registration with JWT + bcrypt
+- **Progress Tracking** — Mark nodes complete/in-progress/skipped, track completion %, dashboard with streaks
+- **User Notes & Bookmarks** — Save personal notes per node, bookmark topics for later
+- **Node Dependencies** — Prerequisite and follow-up topic graph
+- **User Auth** — Email/password registration with JWT + bcrypt, race-condition safe
 - **Admin Dashboard** — Platform stats, user management, feedback moderation
 
 ## Tech Stack
@@ -20,7 +21,7 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 |-------------|----------------------------------------------|
 | Frontend    | React 18 + Vite + Tailwind CSS + Zustand     |
 | Backend     | FastAPI (Python 3.11) + SQLAlchemy 2.0 async |
-| Database    | PostgreSQL 16                                |
+| Database    | PostgreSQL 16+                               |
 | AI          | Google Gemini (primary) / OpenAI (fallback)  |
 | Auth        | JWT (HS256) + bcrypt                         |
 | Container   | Docker + docker-compose                      |
@@ -31,292 +32,149 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 graph TB
     subgraph Client["Client Layer"]
         B[Browser] --> F[React SPA]
-        F --> A[API Client / Axios]
+
+        subgraph Frontend["React App Internals"]
+            direction TB
+            P[Pages\nHome | Roadmaps | Dashboard | Learn | Admin | Login/Register]
+            C[Components\nNavbar | LoadingSkeleton]
+            ST[Stores\nZustand authStore]
+            L[Lib\napi.js fetch wrapper | utils.js cn()]
+            P --> C
+            P --> ST
+            P --> L
+            ST --> L
+        end
+
+        F --> P
+        F --> A[API Client / fetch]
     end
 
     subgraph Server["Server Layer (FastAPI)"]
-        R[Routes]
-        S[Services]
-        M[SQLAlchemy Models]
-        Sch[Pydantic Schemas]
-        C[Core: Config / Security]
-        R --> S
-        R --> M
-        R --> Sch
-        R --> C
+        direction TB
+
+        subgraph Middleware["Middleware Stack"]
+            direction LR
+            LM[RequestLogging\nlogs: METHOD /path status duration]
+            RM[RateLimit\nin-memory per-user\n30 req/min on AI endpoints]
+            EH[Error Handlers\n422 Validation | HTTPException | 500]
+            LM --> RM --> EH
+        end
+
+        subgraph Routes["Route Groups"]
+            direction TB
+            Auth[Auth\nPOST register | POST login\nGET/PATCH /me]
+            RMaps[Roadmaps\nCRUD roadmaps\nCRUD nodes\nCRUD resources]
+            Prog[Progress\nenroll | unenroll\nupdate node | dashboard]
+            Cont[Content\nfeedback CRUD\nbookmark toggle\nnotes CRUD]
+            AI[AI\nexplain | simplify\nquiz | projects | weekly]
+            Admin[Admin\nstats | users | feedback]
+        end
+
+        S[Services / Business Logic]
+        M[SQLAlchemy ORM Models\nProfile | Roadmap | RoadmapNode\nNodeDependency | UserRoadmap\nUserNodeProgress | Resource\nNote | Bookmark | AIExplanation\nQuiz | QuizAttempt | Feedback]
+        Sch[Pydantic Schemas\nrequest validation\nresponse serialization]
+        C[Core\nconfig.py env settings\nsecurity.py JWT + bcrypt]
+        U[Utils\npagination.py\nParseParams + PaginatedResponse\ndb_helpers.py\nparse_uuid + resolve_roadmap]
+
+        Middleware --> Routes
+        Routes --> S
+        Routes --> M
+        Routes --> Sch
+        Routes --> C
+        Routes --> U
     end
 
-    subgraph AI["AI Service Layer"]
-        G[Google Gemini API]
-        O[OpenAI API]
+    subgraph AI_APIS["AI Service Layer"]
+        G[Google Gemini API\nprimary provider]
+        O[OpenAI API\nfallback provider]
         S --> G
         S --> O
     end
 
     subgraph Storage["Data Layer"]
-        PG[(PostgreSQL 16)]
+        PG[(PostgreSQL 16+)]
         M --> PG
     end
 
-    A --> R
+    A --> Middleware
 ```
 
-### Request Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Browser
-    participant API as FastAPI
-    participant AI as AI Service
-    participant DB as PostgreSQL
-
-    User->>Browser: Browse roadmaps
-    Browser->>API: GET /api/roadmaps
-    API->>DB: Query published roadmaps
-    DB-->>API: Roadmap list
-    API-->>Browser: JSON response
-    Browser-->>User: Render roadmap cards
-
-    User->>Browser: Click a roadmap
-    Browser->>API: GET /api/roadmaps/frontend
-    API->>DB: Query roadmap + nodes
-    DB-->>API: Roadmap with nodes
-    API-->>Browser: Nodes with positions
-    Browser-->>User: Display interactive graph
-
-    User->>Browser: Ask AI to explain node
-    Browser->>API: POST /api/ai/explain-node
-    API->>DB: Check cache
-    alt Cache miss
-        API->>AI: Generate explanation
-        AI-->>API: Response text
-        API->>DB: Store in ai_explanations
-    end
-    API-->>Browser: Explanation text
-    Browser-->>User: Display AI explanation
-
-    User->>Browser: Mark node complete
-    Browser->>API: PATCH /api/progress/node/{id}
-    API->>DB: Upsert UserNodeProgress
-    API->>DB: Recalculate completion %
-    API-->>Browser: Updated status + %
-    Browser-->>User: Visual progress update
-```
-
-### Auth Flow
-
-```mermaid
-graph LR
-    subgraph Register
-        RE[POST /register] --> H[hash password]
-        H --> S[store in DB]
-        S --> TJ[generate JWT]
-    end
-    subgraph Login
-        L[POST /login] --> V[verify bcrypt]
-        V --> TJ
-    end
-    subgraph Access
-        TJ --> MW[Bearer middleware]
-        MW --> D[decode & verify]
-        D --> U[return user]
-    end
-```
-
-### Deployment Architecture
-
-```mermaid
-graph TB
-    subgraph Internet
-        User[User Browser]
-    end
-
-    subgraph Docker_Host["Docker Host"]
-        subgraph Network["pathforge-network"]
-            direction TB
-
-            subgraph Frontend_Container["Frontend Container"]
-                F[Vite Dev Server :5173]
-                FA[Static Assets]
-            end
-
-            subgraph Backend_Container["Backend Container"]
-                B[Uvicorn :8000]
-                BA[FastAPI App]
-                BS[Seed Script]
-            end
-
-            subgraph DB_Container["Database Container"]
-                PG[(PostgreSQL 16 :5432)]
-                PV[Persistent Volume]
-            end
-        end
-    end
-
-    User -->|HTTP :5173| F
-    F -->|API Proxy :8000| B
-    B -->|AsyncPG :5432| PG
-    PG --> PV
-    BS -->|seeds data| PG
-    B -->|API calls| G[Google Gemini API]
-    B -->|API calls| O[OpenAI API]
-```
-
-### Frontend Component Tree
-
-```mermaid
-graph TB
-    App[App.jsx] --> Router[React Router]
-    Router --> Layout[Layout / Navbar]
-
-    Layout --> Home[Home Page]
-    Layout --> Roadmaps[Roadmaps Browse]
-
-    Layout --> RoadmapDetail[Roadmap Detail]
-
-    Layout --> Learn[Learn / Node Detail]
-
-    Layout --> Dashboard[Dashboard]
-    Layout --> Login[Login]
-    Layout --> Register[Register]
-    Layout --> Admin[Admin Panel]
-
-    Home --> Hero[Hero Section]
-    Home --> CategoryGrid[Category Grid]
-
-    Roadmaps --> FilterBar[Filter by Category / Difficulty]
-    Roadmaps --> SearchBar[Search]
-    Roadmaps --> CardGrid[Roadmap Card Grid]
-
-    RoadmapDetail --> GraphView[Interactive Graph View]
-    RoadmapDetail --> NodeList[Sidebar Node List]
-    GraphView --> NodePopup[Node Popup]
-
-    Learn --> AIExplain[AI Explanation]
-    Learn --> AIQuiz[AI Quiz]
-    Learn --> AIPlan[Weekly Plan]
-    Learn --> Notes[User Notes]
-    Learn --> Resources[Resource Links]
-
-    Dashboard --> ProgressChart[Progress Chart]
-    Dashboard --> Streak[Streak Tracker]
-    Dashboard --> Enrolled[Enrolled Roadmaps]
-
-    subgraph State["Zustand State"]
-        AuthStore[Auth Store]
-    end
-
-    subgraph API["API Client Layer"]
-        Axios[Axios Instance]
-        Interceptors[JWT Interceptor]
-    end
-
-    Layout --> State
-    Layout --> API
-```
-
-### Error Handling & Middleware Flow
+### Middleware & Error Handling Flow
 
 ```mermaid
 graph TD
-    Request[Incoming Request] --> CORS[CORS Middleware]
-    CORS --> Route[Route Matcher]
+    Request[Incoming HTTP Request] --> CORS[CORS Middleware\nchecks Origin header against whitelist]
+
+    CORS --> Log[RequestLoggingMiddleware\nlogs: METHOD /api/path -> status (duration ms)\nformats: INFO pathforge]
+
+    Log --> Rate[RateLimitMiddleware\nreads X-Forwarded-For or client IP\nin-memory dict: {ip: [timestamps]}\n30 requests per 60s window on /api/ai/*\npass-through for all other routes]
+
+    Rate --> Route[/api/* Path Matcher]
 
     Route --> Auth{Requires Auth?}
-    Auth -->|Yes| JWT[JWT Bearer Extract]
-    Auth -->|No| Handler[Route Handler]
+    Auth -->|Yes - most routes| JWT[get_current_user / get_current_admin Depends\nExtract Authorization: Bearer header\nDecode HS256 JWT → user_id + role]
 
-    JWT --> Valid{Valid Token?}
-    Valid -->|Yes| Decode[Decode & Load User]
-    Valid -->|No| 401[401 Unauthorized]
-    401 --> Response[Error Response]
+    Auth -->|No - register, login, GET roadmaps| Handler[Route Handler\nAsync def reads path/query/body params\nCalls services, queries DB, returns response]
 
-    Decode --> Handler
+    JWT --> Valid{Valid JWT Signature & Expiry?}
+    Valid -->|Yes| Load[Load Profile from DB by user_id]
+    Valid -->|No| 401["401 Unauthorized\n{detail: 'Invalid or expired token'}"]
 
-    Handler --> Success{Success?}
-    Success -->|Yes| 200[200 OK]
-    Success -->|No| Exception{Exception Type}
+    Load --> Handler
 
-    Exception -->|Validation| 422[422 Validation Error]
-    Exception -->|Not Found| 404[404 Not Found]
-    Exception -->|Auth Error| 401
-    Exception -->|Permission| 403[403 Forbidden]
-    Exception -->|DB Error| 500[500 Internal Error]
+    Handler --> Success{Handler Executes}
 
-    200 --> Response
-    422 --> Response
-    404 --> Response
-    401 --> Response
-    403 --> Response
-    500 --> Response
+    Success -->|200 / 201| JSON["JSON Response\nPydantic schema serialization\nContent-Type: application/json"]
+
+    Success -->|204| NoContent["204 No Content\nEmpty body for DELETE operations"]
+
+    Success -->|Exception Raised| Exception{Exception Type}
+
+    Exception -->|RequestValidationError| 422["422 Unprocessable Entity\nvalidation_exception_handler\nshows field-level errors"]
+
+    Exception -->|HTTPException| StatusCode["Dynamic Status Code\nhttp_exception_handler\nreturns HTTPException.status_code + detail"]
+
+    Exception -->|Unhandled Exception| 500["500 Internal Server Error\ngeneral_exception_handler\nlogs traceback, returns generic message"]
 ```
 
-### Database Migration Strategy
-
-```mermaid
-graph LR
-    subgraph Dev["Development"]
-        A[Define Models] --> B[create_all on startup]
-        B --> C[Seed Data]
-    end
-
-    subgraph Prod["Production"]
-        D[Alembic Init] --> E[Generate Migration]
-        E --> F[Review & Edit]
-        F --> G[Apply Migration]
-        G --> H[Verify]
-    end
-
-    subgraph Seed["Data Seeding"]
-        I[GitHub API] --> J[Fetch roadmap.sh JSON]
-        J --> K[Parse React Flow Format]
-        K --> L[Insert Roadmaps]
-        K --> M[Insert Nodes]
-        K --> N[Insert Dependencies]
-    end
-```
-
-### Caching Strategy
-
-```mermaid
-graph TB
-    subgraph AI_Cache["AI Explanation Cache"]
-        Req[POST /explain-node] --> Check{Exists in DB?}
-        Check -->|Yes| Return[Return Cached Response]
-        Check -->|No| Gen[Call Gemini / OpenAI]
-        Gen --> Store[Save to ai_explanations table]
-        Store --> Return
-    end
-
-    subgraph DB_Cache["Database-Level"]
-        Q[Query] --> Pool[Connection Pool (20 connections)]
-        Pool --> PG[(PostgreSQL)]
-    end
-```
-
-## Data Model
+### Database ERD
 
 ```mermaid
 erDiagram
     profiles ||--o{ user_roadmaps : enrolls
     profiles ||--o{ user_node_progress : progresses
+    profiles ||--o{ notes : writes
+    profiles ||--o{ bookmarks : creates
+    profiles ||--o{ feedback : submits
     roadmaps ||--o{ roadmap_nodes : contains
     roadmaps ||--o{ user_roadmaps : tracked
+    roadmaps ||--o{ quizzes : has
     roadmap_nodes ||--o{ node_dependencies : depends-on
     roadmap_nodes ||--o{ user_node_progress : tracked
     roadmap_nodes ||--o{ resources : has
     roadmap_nodes ||--o{ ai_explanations : cached
     roadmap_nodes ||--o{ notes : has
     roadmap_nodes ||--o{ bookmarks : bookmarked
+    roadmap_nodes ||--o{ quizzes : tested-by
+    roadmap_nodes ||--o{ feedback : references
+    profiles ||--o{ quiz_attempts : takes
+    roadmap_nodes ||--o{ quiz_attempts : targets
 
     profiles {
         uuid id PK
         string email UK
         string password_hash
         string full_name
-        string role
+        string role "user | admin | super_admin"
         int streak_days
+        string avatar_url
+        string bio
+        string current_role
+        string target_role
+        int hours_per_week
+        string experience_level
+        boolean is_public
+        datetime created_at
     }
 
     roadmaps {
@@ -326,39 +184,113 @@ erDiagram
         text description
         string category
         string difficulty
+        float estimated_hours
+        string cover_image_url
         boolean is_published
+        uuid created_by FK "ondelete SET NULL"
+        datetime created_at
     }
 
     roadmap_nodes {
         uuid id PK
-        uuid roadmap_id FK
+        uuid roadmap_id FK "ondelete CASCADE"
         string source_node_id
         string node_type
         string title
+        text description
+        string category
+        string difficulty
+        string why_important
+        boolean is_optional
+        float estimated_hours
+        int order_index
         float position_x
         float position_y
-        int order_index
     }
 
     node_dependencies {
-        uuid node_id FK
-        uuid depends_on_node_id FK
+        uuid node_id FK "ondelete CASCADE"
+        uuid depends_on_node_id FK "ondelete CASCADE"
     }
 
     user_node_progress {
         uuid id PK
-        uuid user_id FK
-        uuid node_id FK
-        string status
+        uuid user_id FK "ondelete CASCADE"
+        uuid node_id FK "ondelete CASCADE"
+        uuid roadmap_id FK "ondelete CASCADE"
+        string status "pending | in_progress | done | skipped"
+        datetime updated_at
+    }
+
+    user_roadmaps {
+        uuid user_id FK "ondelete CASCADE"
+        uuid roadmap_id FK "ondelete CASCADE"
+        datetime started_at
+        datetime completed_at
+        float completion_pct
+        boolean is_pinned
+    }
+
+    resources {
+        uuid id PK
+        uuid node_id FK "ondelete CASCADE"
+        string title
+        string url
+        string type
+    }
+
+    notes {
+        uuid id PK
+        uuid user_id FK "ondelete CASCADE"
+        uuid node_id FK "ondelete CASCADE"
+        text content
+        datetime created_at
+        datetime updated_at
+    }
+
+    bookmarks {
+        uuid user_id FK "ondelete CASCADE"
+        uuid node_id FK "ondelete CASCADE"
+        datetime created_at
     }
 
     ai_explanations {
         uuid id PK
-        uuid node_id FK
+        uuid node_id FK "ondelete CASCADE"
         string prompt_type
         text response_text
+        string model_used
+        datetime created_at
+    }
+
+    quizzes {
+        uuid id PK
+        uuid node_id FK "ondelete CASCADE"
+        string title
+        text questions_json
+    }
+
+    quiz_attempts {
+        uuid id PK
+        uuid user_id FK "ondelete CASCADE"
+        uuid node_id FK "ondelete CASCADE"
+        int score
+        int total
+        datetime created_at
+    }
+
+    feedback {
+        uuid id PK
+        uuid user_id FK "ondelete CASCADE"
+        uuid node_id FK "ondelete SET NULL"
+        string type
+        text content
+        string status "open | closed"
+        datetime created_at
     }
 ```
+
+All foreign keys use `ondelete` — owned resources (progress, notes, bookmarks, etc.) cascade; optional references (feedback → node) set null.
 
 ## Quick Start
 
@@ -368,7 +300,7 @@ erDiagram
 |------------|-----------|
 | Python     | 3.11+     |
 | Node.js    | 20+       |
-| PostgreSQL | 16        |
+| PostgreSQL | 16+       |
 | Docker     | 24+ (optional) |
 
 ### Environment Variables
@@ -401,10 +333,9 @@ pip install -r requirements.txt
 
 # Configure environment
 copy .env.example .env        # Windows
-# cp .env.example .env        # macOS / Linux
 # Edit .env — set DATABASE_URL, JWT_SECRET, and at least one AI key
 
-# Create the database
+# Create the database (edit credentials as needed)
 createdb pathforge
 
 # Seed 76+ roadmaps with real data from roadmap.sh
@@ -470,14 +401,14 @@ Content-Type: application/json
   "full_name": "Jane Doe"
 }
 
-# Response: 200
+# Response: 201 Created
 {
   "access_token": "eyJhbGci...",
   "token_type": "bearer",
   "user": {
     "id": "uuid",
-    "full_name": "Jane Doe",
     "email": "user@example.com",
+    "full_name": "Jane Doe",
     "role": "user"
   }
 }
@@ -492,13 +423,41 @@ Content-Type: application/json
   "password": "securepass123"
 }
 
-# Response: 200 (same shape as register)
+# Response: 200
+```
+
+### User Profile
+
+```http
+GET /api/me
+Authorization: Bearer <token>
+
+# Response: 200
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "full_name": "Jane Doe",
+  "role": "user",
+  "bio": null,
+  "current_role": null,
+  "experience_level": "beginner",
+  "streak_days": 0,
+  "created_at": "2025-06-01T00:00:00Z"
+}
+
+PATCH /api/me
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "full_name": "Jane Updated", "bio": "Learning backend" }
+
+# Response: 200
 ```
 
 ### Roadmaps
 
 ```http
-# List all published roadmaps (supports ?category=, ?difficulty=, ?search=)
+# List all published roadmaps
 GET /api/roadmaps
 
 # Response: 200
@@ -512,45 +471,57 @@ GET /api/roadmaps
     "node_count": 85
   }
 ]
-```
 
-```http
-# Get a single roadmap with all its nodes
+# Get a single roadmap with all nodes
 GET /api/roadmaps/frontend
 
 # Response: 200
 {
   "roadmap": { "id": "uuid", "title": "Frontend Developer", ... },
-  "nodes": [
-    {
-      "id": "uuid",
-      "source_node_id": "abc123",
-      "node_type": "topic",
-      "title": "HTML",
-      "position_x": -214.5,
-      "position_y": 32.3
-    }
-  ]
+  "nodes": [...]
 }
-```
 
-```http
-# Node detail — dependencies, resources, and user progress
+# Node detail with dependencies, status, resources
 GET /api/roadmaps/nodes/{nodeId}
+Authorization: Bearer <token>
 
 # Response: 200
 {
   "id": "uuid",
   "title": "React",
-  "description": null,
-  "dependencies": [
-    { "node_id": "uuid", "title": "JavaScript" }
-  ],
-  "dependents": [
-    { "node_id": "uuid", "title": "Next.js" }
-  ],
+  "dependencies": [{ "node_id": "uuid", "title": "JavaScript" }],
+  "dependents": [{ "node_id": "uuid", "title": "Next.js" }],
+  "status": "in_progress",
+  "is_bookmarked": false,
   "resources": []
 }
+```
+
+### Admin — Roadmap CRUD
+
+```http
+POST /api/roadmaps
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{ "title": "New Roadmap", "slug": "new-rm", "category": "skill-based", "difficulty": "intermediate" }
+
+# Response: 201 Created
+
+POST /api/roadmaps/{roadmap_id}/nodes
+Authorization: Bearer <admin-token>
+
+# Response: 201 Created
+
+POST /api/roadmaps/nodes/{node_id}/resources
+Authorization: Bearer <admin-token>
+
+# Response: 201 Created
+
+DELETE /api/roadmaps/{roadmap_id}
+DELETE /api/roadmaps/nodes/{node_id}
+DELETE /api/roadmaps/resources/{resource_id}
+# Response: 204 No Content
 ```
 
 ### Progress
@@ -558,20 +529,94 @@ GET /api/roadmaps/nodes/{nodeId}
 ```http
 # Enroll in a roadmap (by slug or UUID)
 POST /api/progress/frontend/start
+Authorization: Bearer <token>
+
+# Response: 201 Created
+{ "message": "Enrolled successfully" }
+
+# Unenroll
+DELETE /api/progress/frontend/unenroll
+Authorization: Bearer <token>
+
+# Response: 204 No Content
+
+# Get progress for a roadmap
+GET /api/progress/frontend/progress
+Authorization: Bearer <token>
 
 # Response: 200
-{ "message": "Enrolled successfully" }
-```
+{ "progress": [{ "node_id": "uuid", "status": "done", "updated_at": "..." }] }
 
-```http
-# Mark a node as done / in_progress / pending
+# Mark a node
 PATCH /api/progress/node/{nodeId}
+Authorization: Bearer <token>
 Content-Type: application/json
 
 { "status": "done" }
 
 # Response: 200
 { "status": "done", "completion_pct": 42.5, "node_id": "uuid" }
+
+# Dashboard summary
+GET /api/progress/dashboard/summary
+Authorization: Bearer <token>
+
+# Response: 200
+{
+  "active_roadmaps": 3,
+  "total_nodes_completed": 42,
+  "streak_days": 5,
+  "recent_activity": []
+}
+
+# My roadmaps
+GET /api/progress/my-roadmaps
+Authorization: Bearer <token>
+
+# Response: 200
+[{ "roadmap": { "id": "uuid", "title": "...", "slug": "..." }, "completion_pct": 50, "is_pinned": false }]
+```
+
+### Content — Notes, Bookmarks, Feedback
+
+```http
+# Submit feedback
+POST /api/content/feedback
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "content": "Great platform!", "type": "general" }
+
+# Response: 201 Created
+
+# List my feedback
+GET /api/content/feedback
+Authorization: Bearer <token>
+
+# Toggle bookmark
+POST /api/content/nodes/{node_id}/bookmark
+Authorization: Bearer <token>
+
+# Response: 200
+{ "is_bookmarked": true }
+
+# Notes CRUD
+GET /api/content/nodes/{node_id}/notes
+Authorization: Bearer <token>
+
+POST /api/content/nodes/{node_id}/notes
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "content": "My note about this topic" }
+
+# Response: 201 Created
+
+PUT /api/content/nodes/{node_id}/notes
+Authorization: Bearer <token>
+
+DELETE /api/content/nodes/{node_id}/notes
+# Response: 204 No Content
 ```
 
 ### AI
@@ -579,18 +624,21 @@ Content-Type: application/json
 ```http
 # Explain a topic (cached per node)
 POST /api/ai/explain-node
+Authorization: Bearer <token>
 Content-Type: application/json
 
 { "node_id": "uuid" }
 
 # Response: 200
 { "explanation": "React is a JavaScript library for building user interfaces...", "cached": false }
-```
 
-```http
+# Simplify (also cached)
+POST /api/ai/simplify-node
+Authorization: Bearer <token>
+
 # Generate quiz questions
 POST /api/ai/generate-quiz
-Content-Type: application/json
+Authorization: Bearer <token>
 
 { "node_id": "uuid", "count": 5 }
 
@@ -605,12 +653,19 @@ Content-Type: application/json
     }
   ]
 }
-```
 
-```http
+# Suggest projects based on completed nodes
+POST /api/ai/suggest-projects
+Authorization: Bearer <token>
+
+{ "roadmap_id": "uuid", "completed_node_ids": ["uuid1", "uuid2"] }
+
+# Response: 200
+{ "projects": "3 project ideas..." }
+
 # Weekly learning plan
 POST /api/ai/weekly-plan
-Content-Type: application/json
+Authorization: Bearer <token>
 
 { "roadmap_id": "uuid", "hours_available": 10 }
 
@@ -622,7 +677,7 @@ Content-Type: application/json
 
 ```http
 GET /api/admin/stats
-Authorization: Bearer <admin-jwt>
+Authorization: Bearer <admin-token>
 
 # Response: 200
 {
@@ -632,6 +687,24 @@ Authorization: Bearer <admin-jwt>
   "total_nodes": 5400,
   "open_feedback": 3
 }
+
+GET /api/admin/users
+Authorization: Bearer <admin-token>
+
+PATCH /api/admin/users/{user_id}/role
+Authorization: Bearer <super-admin-token>
+Content-Type: application/json
+
+{ "role": "admin" }
+
+GET /api/admin/feedback
+Authorization: Bearer <admin-token>
+
+PATCH /api/admin/feedback/{feedback_id}
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{ "status": "closed" }
 ```
 
 ## File Structure
@@ -640,63 +713,176 @@ Authorization: Bearer <admin-jwt>
 backend/
 ├── app/
 │   ├── core/
-│   │   ├── config.py          # Pydantic settings (env vars)
-│   │   └── security.py        # JWT, bcrypt, auth deps
+│   │   ├── config.py             # Pydantic settings from env
+│   │   └── security.py           # JWT, bcrypt, auth deps
 │   ├── db/
-│   │   └── session.py         # Async engine, session factory
-│   ├── models/                # SQLAlchemy ORM models
-│   │   ├── roadmap.py         # Roadmap, RoadmapNode, NodeDependency
-│   │   ├── user.py            # Profile
-│   │   ├── progress.py        # UserRoadmap, UserNodeProgress
-│   │   ├── content.py         # Note, Bookmark, AIExplanation
-│   │   ├── quiz.py            # Quiz, QuizAttempt
-│   │   ├── resource.py        # Resource
-│   │   └── feedback.py        # Feedback
-│   ├── schemas/               # Pydantic request/response models
+│   │   └── session.py            # Async engine, session factory, Base
+│   ├── middleware/
+│   │   ├── logging.py            # RequestLoggingMiddleware (method/path/status/duration)
+│   │   ├── error_handlers.py     # HTTP, Validation, 500 handlers
+│   │   └── rate_limit.py         # In-memory per-user rate limiter for AI endpoints
+│   ├── models/                   # SQLAlchemy ORM models
+│   │   ├── user.py               # Profile
+│   │   ├── roadmap.py            # Roadmap, RoadmapNode, NodeDependency
+│   │   ├── progress.py           # UserRoadmap, UserNodeProgress
+│   │   ├── content.py            # Note, Bookmark, AIExplanation
+│   │   ├── quiz.py               # Quiz, QuizAttempt
+│   │   ├── resource.py           # Resource
+│   │   └── feedback.py           # Feedback
+│   ├── schemas/                  # Pydantic request/response
 │   │   ├── roadmap.py
-│   │   ├── user.py
-│   │   └── progress.py
-│   ├── routes/                # API endpoint modules
-│   │   ├── auth_register.py   # POST /register, /login
-│   │   ├── auth.py            # GET /me, PATCH /me
-│   │   ├── roadmaps.py        # CRUD roadmaps, nodes, resources
-│   │   ├── progress.py        # Enroll, track, dashboard
-│   │   ├── ai.py              # Explain, quiz, projects, weekly plan
-│   │   └── admin.py           # Stats, users, feedback
+│   │   ├── user.py               # ProfileRead includes email
+│   │   └── progress.py           # FeedbackRead, NoteRead, BookmarkToggleResponse
+│   ├── routes/
+│   │   ├── auth_register.py      # POST /register (201), POST /login
+│   │   ├── auth.py               # GET /me, PATCH /me
+│   │   ├── roadmaps.py           # CRUD roadmaps/nodes/resources
+│   │   ├── progress.py           # Enroll, unenroll, update node, dashboard
+│   │   ├── content.py            # Feedback, bookmarks, notes CRUD
+│   │   ├── ai.py                 # Explain, simplify, quiz, projects, weekly
+│   │   └── admin.py              # Stats, users, feedback
 │   ├── services/
-│   │   └── ai_service.py      # Gemini + OpenAI prompt templates
-│   └── main.py                # FastAPI app, CORS, lifespan
-├── seed_data.py               # Scrapes & seeds 76+ roadmaps from GitHub
+│   │   └── ai_service.py         # Gemini primary + OpenAI fallback
+│   ├── utils/
+│   │   ├── pagination.py         # PaginationParams + PaginatedResponse
+│   │   └── db_helpers.py         # parse_uuid, resolve_roadmap (shared)
+│   └── main.py                   # FastAPI app, middleware stack, router registration
+├── tests/
+│   ├── conftest.py               # Async test fixtures, DB reset per test
+│   ├── test_auth.py              # Register, login, profile (11)
+│   ├── test_roadmaps.py          # CRUD, nodes, resources (21)
+│   ├── test_progress.py          # Enroll, progress, dashboard (11)
+│   └── test_admin.py             # Stats, users, feedback (8)
+├── alembic/
+│   ├── env.py
+│   ├── versions/
+│   │   └── 001_initial_schema.py
+│   └── alembic.ini
+├── seed_data.py                  # Scrapes 76+ roadmaps from GitHub
 ├── requirements.txt
 ├── Dockerfile
-└── .env.example
+├── .env.example
+└── pytest.ini
 
 frontend/
 ├── src/
 │   ├── pages/
-│   │   ├── Home.jsx           # Landing page
-│   │   ├── Roadmaps.jsx       # Browse all roadmaps
-│   │   ├── RoadmapDetail.jsx  # Interactive roadmap graph
-│   │   ├── Learn.jsx          # Node detail + AI features
-│   │   ├── Dashboard.jsx      # User dashboard
-│   │   ├── Login.jsx
-│   │   ├── Register.jsx
-│   │   └── Admin.jsx
+│   │   ├── HomePage.jsx          # Landing page
+│   │   ├── RoadmapsPage.jsx      # Browse all roadmaps
+│   │   ├── RoadmapDetailPage.jsx # Single roadmap detail
+│   │   ├── LearnPage.jsx         # Interactive learning view
+│   │   ├── DashboardPage.jsx     # User dashboard
+│   │   ├── LoginPage.jsx
+│   │   ├── RegisterPage.jsx
+│   │   └── AdminPage.jsx         # Admin panel
+│   ├── components/
+│   │   ├── layout/
+│   │   │   └── Navbar.jsx        # Top nav with mobile hamburger
+│   │   └── shared/
+│   │       └── LoadingSkeleton.jsx
 │   ├── lib/
-│   │   └── api.js             # Axios client
+│   │   ├── api.js                # fetch wrapper with 401 interceptor
+│   │   └── utils.js              # cn() helper (clsx + tailwind-merge)
 │   ├── stores/
-│   │   └── authStore.js       # Zustand auth state
-│   └── App.jsx                # Router + layout
+│   │   └── authStore.js          # Zustand auth state
+│   ├── test/
+│   │   ├── setup.js              # @testing-library/jest-dom imports
+│   │   ├── api.test.js           # API client tests (10)
+│   │   ├── authStore.test.js     # Zustand store tests (7)
+│   │   ├── utils.test.js         # cn() utility tests (5)
+│   │   ├── Navbar.test.jsx       # Navbar rendering tests (5)
+│   │   └── App.test.jsx          # Route guard tests (7)
+│   └── App.jsx                   # Router, ProtectedRoute, GuestRoute, AdminRoute
 ├── package.json
-├── vite.config.js
-└── Dockerfile
+├── vite.config.js                # Vitest config integrated
+├── Dockerfile
+├── .eslintrc.cjs
+└── .prettierrc
+```
+
+## Security
+
+```mermaid
+graph TB
+    subgraph Measures["Implemented Security Measures"]
+        direction TB
+
+        subgraph AuthN_AuthZ["Authentication & Authorization"]
+            A1[Register] --> A1a[Password hashed with bcrypt\n12 salt rounds\nbefore DB insert]
+            A2[Login] --> A2a[Verify password hash\nIssue JWT with user_id + role]
+            A3[JWT Token] --> A3a[Algorithm: HS256\nPayload: sub, role, exp, iat\nExpiry: configurable via JWT_EXPIRY_MINUTES\nSecret: from JWT_SECRET env var]
+            A4[Protected Routes] --> A4a[get_current_user Depends\nExtracts Bearer token\nDecodes JWT → loads Profile\n403 if invalid/missing]
+            A5[Admin Routes] --> A5a[get_current_admin Depends\nChecks role in ['admin', 'super_admin']\n403 if insufficient role]
+            A6[Super Admin] --> A6a[Role check in endpoint body\nOnly super_admin can PATCH /users/{id}/role]
+        end
+
+        subgraph DataProtection["Data Protection"]
+            D1[SQLAlchemy ORM] --> D1a[Parameterized queries\nNo raw SQL interpolation\nPrevents SQL injection]
+            D2[Foreign Keys] --> D2a[ondelete CASCADE for owned\nresources (progress, notes, bookmarks)\nondelete SET NULL for optional\nreferences (feedback → node)]
+            D3[Register Race Condition] --> D3a[No pre-check SELECT\nUnique constraint on email\n409 Conflict on duplicate]
+        end
+
+        subgraph NetworkProtection["Network Protection"]
+            N1[CORS Middleware] --> N1a[Origin whitelist from\nCORS_ORIGINS env var\nBlocks unauthorized origins]
+            N2[Rate Limiting] --> N2a[In-memory sliding window\nPer IP address\n30 requests / 60 seconds\nOnly on /api/ai/* endpoints]
+        end
+
+        subgraph FrontendProtection["Frontend Protections"]
+            F1[401 Interceptor] --> F1a[api.js handleResponse\nOn 401: clear token, redirect /login\nPrevents infinite auth loops]
+            F2[Route Guards] --> F2a[ProtectedRoute: redirect /login\nGuestRoute: redirect /dashboard\nAdminRoute: check role, redirect /]
+            F3[Token Storage] --> F3a[localStorage only\nNo httpOnly cookies\nXSS protection via React]
+        end
+    end
+
+    subgraph Recommended["Production Hardening"]
+        R1[Use strong JWT_SECRET\nvia environment variable]
+        R2[Enable HTTPS\nvia reverse proxy]
+        R3[Short JWT expiry\n15-30 minutes + refresh tokens]
+        R4[Redis-backed rate limiting\nshared across workers]
+        R5[Connection pool limits\ntune pool_size + max_overflow]
+        R6[Add CSRF protection\nfor cookie-based auth]
+        R7[Security headers\nCSP, HSTS, X-Frame-Options]
+    end
+```
+
+## Testing
+
+### Backend Test Suite (60 tests)
+
+| File              | Tests | Scope                          |
+|-------------------|-------|--------------------------------|
+| `test_auth.py`    | 11    | Register, login, profile CRUD  |
+| `test_roadmaps.py`| 21    | List, get, CRUD, nodes, resources |
+| `test_progress.py`| 11    | Enroll, progress, dashboard    |
+| `test_admin.py`   | 8     | Stats, users, feedback         |
+
+Tests use a dedicated `pathforge_test` database (configurable via `TEST_DATABASE_URL` env var) with per-function schema reset.
+
+```bash
+cd backend
+$env:TEST_DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/pathforge_test"
+pytest -v
+```
+
+### Frontend Test Suite (34 tests)
+
+| File                 | Tests | Scope                             |
+|----------------------|-------|-----------------------------------|
+| `api.test.js`        | 10    | API client (GET/POST/PATCH/DELETE, 401 redirect, 204 null) |
+| `authStore.test.js`  | 7     | Zustand store (login/logout/init/updateUser) |
+| `utils.test.js`      | 5     | `cn()` utility (merge, conflicts, edge cases) |
+| `Navbar.test.jsx`    | 5     | Auth-dependent rendering, admin link visibility |
+| `App.test.jsx`       | 7     | Route guards, guest redirects, admin access |
+
+```bash
+cd frontend
+npm test              # single run
+npm run test:watch    # watch mode
 ```
 
 ## Roadmap Data Sources
 
-All roadmap data is sourced from [roadmap.sh](https://roadmap.sh) via its [open-source GitHub repository](https://github.com/kamranahmedse/developer-roadmap). The seed script fetches the raw React Flow JSON files directly, ensuring the platform always has the latest community-maintained learning paths.
-
-Supported categories:
+All roadmap data from [roadmap.sh](https://roadmap.sh) via its [GitHub repository](https://github.com/kamranahmedse/developer-roadmap).
 
 | Category             | Examples                                         |
 |----------------------|--------------------------------------------------|
@@ -714,8 +900,6 @@ Supported categories:
 
 ## AI Prompts
 
-The AI service (`backend/app/services/ai_service.py`) uses structured prompts:
-
 | Feature         | Prompt Key         | What it generates                                           |
 |-----------------|--------------------|-------------------------------------------------------------|
 | Explain         | `EXPLAIN_PROMPT`   | What it is, real-world analogy, code example, next steps    |
@@ -724,167 +908,23 @@ The AI service (`backend/app/services/ai_service.py`) uses structured prompts:
 | Projects        | `PROJECT_PROMPT`   | 3 project ideas (beginner, intermediate, advanced)          |
 | Weekly Plan     | `WEEKLY_PLAN_PROMPT` | 7-day learning schedule based on pace and completed nodes |
 
-Responses are **cached** in the `ai_explanations` table — subsequent requests for the same node return instantly.
-
-## Testing
-
-```mermaid
-graph LR
-    subgraph Test_Suite["Test Suite"]
-        Unit[Unit Tests] --> pytest
-        Integration[Integration Tests] --> pytest
-        API[API Tests] --> httpx
-        E2E[E2E Tests] --> Playwright
-    end
-
-    subgraph CI["CI Pipeline"]
-        Lint --> TypeCheck
-        TypeCheck --> Unit
-        Unit --> Integration
-        Integration --> Build
-    end
-```
-
-### Current Coverage
-
-| Layer       | Tool         | Status      |
-|-------------|--------------|-------------|
-| Backend     | pytest       | Not started |
-| API Routes  | httpx + pytest | Not started |
-| Frontend    | Vitest       | Not started |
-| E2E         | Playwright   | Not started |
-
-To run tests:
-
-```bash
-cd backend
-pytest                      # all backend tests
-pytest tests/ -v            # verbose
-pytest tests/test_routes/   # route tests only
-```
-
-## Security Considerations
-
-```mermaid
-graph TB
-    subgraph Security_Measures["Security Measures"]
-        P[Password] --> B[bcrypt hashing]
-        S[Session] --> J[JWT with expiry]
-        A[API Access] --> T[Token in Bearer header]
-        C[CORS] --> O[Origin whitelist]
-        D[Database] --> P2[Parameterized queries via SQLAlchemy]
-    end
-
-    subgraph Best_Practices["Production Recommendations"]
-        E[Environment] --> E1[Use strong JWT_SECRET]
-        E --> E2[Enable HTTPS]
-        E --> E3[Set short JWT expiry]
-        E --> E4[Rate limit AI endpoints]
-        E --> E5[Use connection pooling limits]
-    end
-```
+Responses are cached in `ai_explanations` table — subsequent requests return instantly.
 
 ## Future Work
 
-### Short-term
-
-```mermaid
-graph LR
-    A[Fix Remaining Todos] --> B[Add Tests]
-    B --> C[API Error Refinement]
-    C --> D[Frontend Polish]
-```
-
 | Priority | Feature                          | Description                                           |
 |----------|----------------------------------|-------------------------------------------------------|
-| P0       | Backend tests                    | Unit + integration tests for all routes and services  |
-| P0       | Frontend tests                   | Component + page tests with Vitest                    |
-| P1       | E2E tests                        | Playwright tests for critical flows                   |
-| P1       | Rate limiting                    | Per-user and per-IP rate limits on AI endpoints       |
-| P1       | Input validation hardening       | Strict Pydantic validation on all request bodies      |
-| P2       | Error response standardization   | Consistent error shape across all endpoints           |
-| P2       | Logging infrastructure           | Structured logging with request IDs                   |
-
-### Medium-term
-
-```mermaid
-gantt
-    title Development Roadmap
-    dateFormat  YYYY-MM-DD
-    section Foundation
-    Test Suite           :done, 2025-06-01, 30d
-    CI/CD Pipeline       :active, 2025-06-15, 45d
-    Error Standardization :2025-07-01, 30d
-
-    section Features
-    Social Auth (Google/GitHub) :2025-07-15, 30d
-    Resource Library     :2025-08-01, 45d
-    User Notes & Bookmarks :2025-08-15, 30d
-    Progress Export (PDF) :2025-09-01, 30d
-
-    section AI
-    Streaming Responses  :2025-09-01, 30d
-    Multi-language Support :2025-09-15, 45d
-    Personalized Learning Paths :2025-10-01, 60d
-```
-
-| Priority | Feature                          | Description                                           |
-|----------|----------------------------------|-------------------------------------------------------|
+| P0       | E2E tests                        | Playwright tests for critical flows                   |
 | P1       | Social OAuth (Google, GitHub)    | Sign in with existing accounts                         |
-| P1       | Resource library                 | Curated articles, videos, and courses per node         |
-| P2       | User notes & bookmarks           | Save personal notes and bookmark nodes                 |
+| P1       | AI streaming responses           | Stream explanations token-by-token via SSE             |
+| P2       | Resource library                 | Curated articles, videos, and courses per node         |
 | P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
-| P2       | AI streaming responses           | Stream AI explanations token-by-token via SSE          |
-| P3       | Multi-language AI support        | Explain topics in Hindi, Spanish, etc.                 |
-
-### Long-term
-
-```mermaid
-graph TB
-    subgraph Long_Term["Future Architecture"]
-        direction TB
-
-        subgraph Platform
-            P1[Community Roadmaps]
-            P2[User-Generated Content]
-            P3[Roadmap Editor]
-        end
-
-        subgraph Intelligence
-            I1[Personalized Paths]
-            I2[Skill Gap Analysis]
-            I3[Adaptive Difficulty]
-        end
-
-        subgraph Scale
-            S1[Redis Cache Layer]
-            S2[CDN for Content]
-            S3[WebSocket Real-time]
-        end
-
-        subgraph Integration
-            Int1[GitHub Integration]
-            Int2[LinkedIn Integration]
-            Int3[VS Code Extension]
-        end
-
-        Platform --> Intelligence
-        Intelligence --> Scale
-        Scale --> Integration
-    end
-```
-
-| Priority | Feature                          | Description                                           |
-|----------|----------------------------------|-------------------------------------------------------|
-| P2       | Custom roadmap editor            | Drag-and-drop UI to create and share roadmaps          |
+| P2       | Redis caching layer              | Replace in-memory rate limiter, cache AI responses     |
 | P2       | Community roadmaps               | User-submitted roadmaps with voting/curation           |
-| P3       | Skill gap analysis               | AI evaluates your profile and recommends missing skills |
-| P3       | Adaptive difficulty               | Roadmap nodes dynamically adjust to user pace          |
-| P3       | Redis caching layer              | Cache AI responses and frequent queries                |
-| P3       | WebSocket real-time sync          | Live progress updates across devices                   |
-| P3       | GitHub integration                | Import starred repos as resources                      |
-| P3       | VS Code extension                 | Learn without leaving your editor                      |
-| P3       | LinkedIn integration              | Export completed roadmaps to LinkedIn skills           |
+| P3       | Custom roadmap editor            | Drag-and-drop UI to create and share roadmaps          |
+| P3       | Multi-language AI support        | Explain topics in Hindi, Spanish, etc.                 |
+| P3       | GitHub integration               | Import starred repos as resources                      |
+| P3       | LinkedIn integration             | Export completed roadmaps to LinkedIn skills           |
 
 ## Contributing
 

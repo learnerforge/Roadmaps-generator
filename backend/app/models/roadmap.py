@@ -16,7 +16,7 @@ class Roadmap(Base):
     estimated_hours = Column(Integer, nullable=True)
     cover_image_url = Column(Text, nullable=True)
     is_published = Column(Boolean, default=False)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

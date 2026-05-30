@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
@@ -10,12 +10,8 @@ from app.core.security import hash_password, verify_password, create_token
 router = APIRouter()
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(Profile).where(Profile.email == data.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
-
     user = Profile(
         id=uuid.uuid4(),
         email=data.email,
@@ -24,7 +20,12 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
         role="user",
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Email already registered (concurrent)")
+
     await db.refresh(user)
 
     token = create_token(str(user.id), user.role)

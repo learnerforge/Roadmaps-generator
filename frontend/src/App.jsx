@@ -15,14 +15,21 @@ import LoadingSkeleton from './components/shared/LoadingSkeleton'
 function ProtectedRoute({ children }) {
   const { user, isLoading } = useAuthStore()
   if (isLoading) return <LoadingSkeleton />
-  if (!user) return <Navigate to="/login" />
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
+function GuestRoute({ children }) {
+  const { user, isLoading } = useAuthStore()
+  if (isLoading) return <LoadingSkeleton />
+  if (user) return <Navigate to="/dashboard" replace />
   return children
 }
 
 function AdminRoute({ children }) {
   const { user, isLoading } = useAuthStore()
   if (isLoading) return <LoadingSkeleton />
-  if (!user || !['admin', 'super_admin'].includes(user.role)) return <Navigate to="/" />
+  if (!user || !['admin', 'super_admin'].includes(user.role)) return <Navigate to="/" replace />
   return children
 }
 
@@ -40,8 +47,8 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/roadmaps" element={<RoadmapsPage />} />
         <Route path="/roadmaps/:slug" element={<RoadmapDetailPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+        <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
         <Route
           path="/dashboard"
           element={

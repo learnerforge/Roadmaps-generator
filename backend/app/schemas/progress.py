@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
 
 class NodeProgressUpdate(BaseModel):
@@ -46,7 +47,28 @@ class FeedbackRead(BaseModel):
     type: str
     content: str
     status: str
-    created_at: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class NoteCreate(BaseModel):
+    content: str
+
+
+class NoteRead(BaseModel):
+    id: UUID
+    user_id: UUID
+    node_id: UUID
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BookmarkToggleResponse(BaseModel):
+    is_bookmarked: bool
+

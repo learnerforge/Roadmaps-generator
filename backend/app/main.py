@@ -6,8 +6,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from app.core.config import get_settings
 from app.db.session import init_db
-from app.routes import auth, auth_register, roadmaps, progress, ai, admin
+from app.routes import auth, auth_register, roadmaps, progress, ai, admin, content
 from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.error_handlers import (
     http_exception_handler,
     validation_exception_handler,
@@ -47,6 +48,7 @@ app.add_middleware(
 )
 
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -58,6 +60,7 @@ app.include_router(roadmaps.router, prefix="/api/roadmaps", tags=["Roadmaps"])
 app.include_router(progress.router, prefix="/api/progress", tags=["Progress"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(content.router, prefix="/api/content", tags=["Content"])
 
 
 @app.get("/api/health")

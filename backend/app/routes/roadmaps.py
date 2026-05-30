@@ -1,5 +1,4 @@
-import uuid as uuid_lib
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
@@ -15,27 +14,9 @@ from app.schemas.roadmap import (
     NodeCreate, NodeUpdate, NodeRead,
     ResourceCreate, ResourceRead,
 )
+from app.utils.db_helpers import parse_uuid, resolve_roadmap
 
 router = APIRouter()
-
-
-def parse_uuid(val: str, name: str = "id"):
-    try:
-        return uuid_lib.UUID(val)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid {name}: {val}")
-
-
-async def resolve_roadmap(db: AsyncSession, ref: str):
-    try:
-        uid = uuid_lib.UUID(ref)
-        result = await db.execute(select(Roadmap).where(Roadmap.id == uid))
-    except ValueError:
-        result = await db.execute(select(Roadmap).where(Roadmap.slug == ref))
-    roadmap = result.scalar_one_or_none()
-    if not roadmap:
-        raise HTTPException(status_code=404, detail="Roadmap not found")
-    return roadmap
 
 
 class NodeDetailRead(NodeRead):
@@ -190,7 +171,7 @@ async def list_resources(node_id: str, db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("/nodes/{node_id}/resources", response_model=ResourceRead)
+@router.post("/nodes/{node_id}/resources", response_model=ResourceRead, status_code=status.HTTP_201_CREATED)
 async def create_resource(
     node_id: str,
     data: ResourceCreate,
@@ -198,6 +179,9 @@ async def create_resource(
     user: Profile = Depends(get_current_admin),
 ):
     uid = parse_uuid(node_id, "node_id")
+    node_result = await db.execute(select(RoadmapNode).where(RoadmapNode.id == uid))
+    if not node_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Node not found")
     resource = Resource(node_id=uid, **data.model_dump())
     db.add(resource)
     await db.commit()
@@ -224,7 +208,7 @@ async def update_node(
     return node
 
 
-@router.delete("/nodes/{node_id}")
+@router.delete("/nodes/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_node(
     node_id: str,
     db: AsyncSession = Depends(get_db),
@@ -237,7 +221,6 @@ async def delete_node(
         raise HTTPException(status_code=404, detail="Node not found")
     await db.delete(node)
     await db.commit()
-    return {"success": True}
 
 
 @router.get("/{slug}")
@@ -255,7 +238,7 @@ async def get_roadmap(slug: str, db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.post("", response_model=RoadmapRead)
+@router.post("", response_model=RoadmapRead, status_code=status.HTTP_201_CREATED)
 async def create_roadmap(
     data: RoadmapCreate,
     db: AsyncSession = Depends(get_db),
@@ -267,7 +250,11 @@ async def create_roadmap(
 
     roadmap = Roadmap(**data.model_dump(), created_by=user.id)
     db.add(roadmap)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Slug already exists (concurrent)")
     await db.refresh(roadmap)
     return RoadmapRead(
         id=roadmap.id, title=roadmap.title, slug=roadmap.slug,
@@ -307,7 +294,7 @@ async def update_roadmap(
     )
 
 
-@router.delete("/{roadmap_id}")
+@router.delete("/{roadmap_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_roadmap(
     roadmap_id: str,
     db: AsyncSession = Depends(get_db),
@@ -320,7 +307,6 @@ async def delete_roadmap(
         raise HTTPException(status_code=404, detail="Roadmap not found")
     await db.delete(roadmap)
     await db.commit()
-    return {"success": True}
 
 
 @router.patch("/{roadmap_id}/publish")
@@ -351,7 +337,7 @@ async def list_nodes(roadmap_id: str, db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("/{roadmap_id}/nodes", response_model=NodeRead)
+@router.post("/{roadmap_id}/nodes", response_model=NodeRead, status_code=status.HTTP_201_CREATED)
 async def create_node(
     roadmap_id: str,
     data: NodeCreate,
@@ -366,7 +352,7 @@ async def create_node(
     return node
 
 
-@router.delete("/resources/{resource_id}")
+@router.delete("/resources/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_resource(
     resource_id: str,
     db: AsyncSession = Depends(get_db),
@@ -379,4 +365,3 @@ async def delete_resource(
         raise HTTPException(status_code=404, detail="Resource not found")
     await db.delete(resource)
     await db.commit()
-    return {"success": True}

@@ -21,6 +21,8 @@ export default function LearnPage() {
   const [aiExplanation, setAiExplanation] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [updateError, setUpdateError] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -28,6 +30,7 @@ export default function LearnPage() {
 
   const loadData = async () => {
     try {
+      setError(null)
       const [roadmapData, progressData] = await Promise.all([
         apiGet(`/roadmaps/${slug}`),
         apiGet(`/progress/${slug}/progress`).catch(() => ({ progress: [] })),
@@ -42,17 +45,20 @@ export default function LearnPage() {
       setProgress(progMap)
     } catch (err) {
       console.error('Failed to load:', err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
   const handleStatusChange = async (nodeId, status) => {
+    setUpdateError(null)
     try {
-      const result = await apiPatch(`/progress/node/${nodeId}`, { status })
+      await apiPatch(`/progress/node/${nodeId}`, { status })
       setProgress((prev) => ({ ...prev, [nodeId]: status }))
     } catch (err) {
       console.error('Failed to update:', err)
+      setUpdateError('Failed to update status. Please try again.')
     }
   }
 
@@ -77,8 +83,30 @@ export default function LearnPage() {
     )
   }
 
+  if (error && !roadmap) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="mb-2 text-red">{error}</p>
+          <button
+            onClick={() => { setLoading(true); setError(null); loadData() }}
+            className="text-sm text-accent hover:underline"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!roadmap) {
-    return <div className="flex min-h-[60vh] items-center justify-center text-text-3">Not found</div>
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="text-text-3">Roadmap not found.</p>
+        </div>
+      </div>
+    )
   }
 
   const doneCount = Object.values(progress).filter((s) => s === 'done').length
@@ -150,6 +178,9 @@ export default function LearnPage() {
                 ))}
               </div>
             </div>
+            {updateError && (
+              <p className="mt-2 text-xs text-red">{updateError}</p>
+            )}
 
             {selectedNode.description && (
               <div className="mb-6 rounded-xl border border-border bg-bg-2 p-5">

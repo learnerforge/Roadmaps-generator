@@ -1,14 +1,19 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
+    setMobileOpen(false)
     navigate('/')
   }
+
+  const closeMobile = () => setMobileOpen(false)
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-xl">
@@ -63,7 +68,75 @@ export default function Navbar() {
             </div>
           )}
         </div>
+
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="sm:hidden flex flex-col gap-1.5 p-2"
+          aria-label="Toggle menu"
+        >
+          <span className={`block h-0.5 w-5 bg-text transition-transform ${mobileOpen ? 'translate-y-2 rotate-45' : ''}`} />
+          <span className={`block h-0.5 w-5 bg-text transition-opacity ${mobileOpen ? 'opacity-0' : ''}`} />
+          <span className={`block h-0.5 w-5 bg-text transition-transform ${mobileOpen ? '-translate-y-2 -rotate-45' : ''}`} />
+        </button>
       </div>
+
+      {mobileOpen && (
+        <div className="sm:hidden border-t border-border bg-bg px-4 py-4 space-y-3">
+          <Link
+            to="/roadmaps"
+            onClick={closeMobile}
+            className="block text-sm text-text-2 hover:text-text transition-colors"
+          >
+            Roadmaps
+          </Link>
+          {user ? (
+            <>
+              <Link
+                to="/dashboard"
+                onClick={closeMobile}
+                className="block text-sm text-text-2 hover:text-text transition-colors"
+              >
+                Dashboard
+              </Link>
+              {user.role === 'admin' || user.role === 'super_admin' ? (
+                <Link
+                  to="/admin"
+                  onClick={closeMobile}
+                  className="block text-sm text-text-2 hover:text-text transition-colors"
+                >
+                  Admin
+                </Link>
+              ) : null}
+              <div className="pt-2 border-t border-border">
+                <span className="block text-sm text-text-3 mb-2">{user.full_name}</span>
+                <button
+                  onClick={handleLogout}
+                  className="w-full rounded-lg border border-red px-3 py-1.5 text-xs text-red transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2 pt-2 border-t border-border">
+              <Link
+                to="/login"
+                onClick={closeMobile}
+                className="block rounded-lg border border-border px-3 py-2 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors text-center"
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                onClick={closeMobile}
+                className="block rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-2 transition-colors text-center"
+              >
+                Get Started
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   )
 }

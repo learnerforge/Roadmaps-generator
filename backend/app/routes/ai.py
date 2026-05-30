@@ -63,13 +63,33 @@ async def simplify_node(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    cached = await db.execute(
+        select(AIExplanation).where(
+            AIExplanation.node_id == data.node_id,
+            AIExplanation.prompt_type == "simplify",
+        )
+    )
+    cached_result = cached.scalar_one_or_none()
+    if cached_result:
+        return {"explanation": cached_result.response_text, "cached": True}
+
     node_result = await db.execute(select(RoadmapNode).where(RoadmapNode.id == data.node_id))
     node = node_result.scalar_one_or_none()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
     result = await simplify_topic(topic_title=node.title)
-    return {"explanation": result}
+
+    ai_exp = AIExplanation(
+        node_id=data.node_id,
+        prompt_type="simplify",
+        response_text=result,
+        model_used="gemini/openai",
+    )
+    db.add(ai_exp)
+    await db.commit()
+
+    return {"explanation": result, "cached": False}
 
 
 @router.post("/generate-quiz")
@@ -103,12 +123,9 @@ async def gen_projects(
     if not roadmap:
         raise HTTPException(status_code=404, detail="Roadmap not found")
 
-    topics = []
-    for nid in data.completed_node_ids:
-        node_r = await db.execute(select(RoadmapNode).where(RoadmapNode.id == nid))
-        node = node_r.scalar_one_or_none()
-        if node:
-            topics.append(node.title)
+    node_ids = data.completed_node_ids
+    nodes_r = await db.execute(select(RoadmapNode).where(RoadmapNode.id.in_(node_ids)))
+    topics = [n.title for n in nodes_r.scalars().all()]
 
     result = await suggest_projects(roadmap_title=roadmap.title, completed_topics=topics)
     return {"projects": result}
