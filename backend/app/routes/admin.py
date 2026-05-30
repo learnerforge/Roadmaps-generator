@@ -1,3 +1,4 @@
+import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -8,6 +9,13 @@ from app.models.roadmap import Roadmap, RoadmapNode
 from app.models.feedback import Feedback
 
 router = APIRouter()
+
+
+def parse_uuid(val: str, name: str = "id"):
+    try:
+        return uuid_lib.UUID(val)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid {name}: {val}")
 
 
 @router.get("/stats")
@@ -69,7 +77,8 @@ async def change_role(
     if user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super admin only")
 
-    result = await db.execute(select(Profile).where(Profile.id == user_id))
+    uid = parse_uuid(user_id, "user_id")
+    result = await db.execute(select(Profile).where(Profile.id == uid))
     target = result.scalar_one_or_none()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
@@ -107,7 +116,8 @@ async def update_feedback(
     user: Profile = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Feedback).where(Feedback.id == feedback_id))
+    uid = parse_uuid(feedback_id, "feedback_id")
+    result = await db.execute(select(Feedback).where(Feedback.id == uid))
     fb = result.scalar_one_or_none()
     if not fb:
         raise HTTPException(status_code=404, detail="Feedback not found")

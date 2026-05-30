@@ -1,11 +1,4 @@
-import { clsx } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-
-export function cn(...inputs) {
-  return twMerge(clsx(inputs))
-}
-
-export const API_BASE = '/api'
+export const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 export async function apiGet(path) {
   const token = localStorage.getItem('token')

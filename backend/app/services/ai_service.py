@@ -4,7 +4,7 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-EXPLAIN_PROMPT = """You are a patient, friendly tech mentor helping an Indian engineering student learn {topic_title}.
+EXPLAIN_PROMPT = """You are a patient, friendly tech mentor helping a student learn {topic_title}.
 
 The student has described their level as: {experience_level}.
 This topic is part of the {roadmap_title} roadmap.
@@ -22,7 +22,7 @@ SIMPLIFY_PROMPT = """Explain "{topic_title}" as if you're talking to a complete 
 - Everyday analogies (food, sports, travel)
 - No technical jargon
 - Maximum 150 words
-- End with: "The key thing to remember is: [one sentence summary]""""
+- End with: 'The key thing to remember is: [one sentence summary]'"""
 
 QUIZ_PROMPT = """Generate exactly {count} multiple-choice questions to test understanding of "{topic_title}".
 
@@ -53,7 +53,7 @@ For each project:
 - Key learning outcome
 - Suggested first step to start
 
-Keep it practical and achievable for an Indian engineering student building a portfolio."""
+Keep it practical and achievable for a student building a portfolio."""
 
 WEEKLY_PLAN_PROMPT = """You are a learning coach helping a developer follow the {roadmap_title} roadmap.
 

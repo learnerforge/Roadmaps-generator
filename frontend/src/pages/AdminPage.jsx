@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api'
+import { apiGet } from '../lib/api'
 
 export default function AdminPage() {
   const [tab, setTab] = useState('stats')

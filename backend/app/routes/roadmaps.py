@@ -8,6 +8,7 @@ from app.core.security import get_current_admin, get_optional_user
 from app.models.user import Profile
 from app.models.roadmap import Roadmap, RoadmapNode, NodeDependency
 from app.models.resource import Resource
+from app.models.content import Bookmark
 from app.models.progress import UserNodeProgress
 from app.schemas.roadmap import (
     RoadmapCreate, RoadmapUpdate, RoadmapRead,
@@ -38,6 +39,8 @@ async def resolve_roadmap(db: AsyncSession, ref: str):
 
 
 class NodeDetailRead(NodeRead):
+    status: str = "pending"
+    is_bookmarked: bool = False
     dependencies: list[dict] = []
     dependents: list[dict] = []
     resources: list[ResourceRead] = []
@@ -112,6 +115,7 @@ async def get_node_detail(
     resources = res_result.scalars().all()
 
     status = "pending"
+    is_bookmarked = False
     if user:
         prog = await db.execute(
             select(UserNodeProgress).where(
@@ -122,6 +126,14 @@ async def get_node_detail(
         p = prog.scalar_one_or_none()
         if p:
             status = p.status
+        bm = await db.execute(
+            select(Bookmark).where(
+                Bookmark.user_id == user.id,
+                Bookmark.node_id == uid,
+            )
+        )
+        if bm.scalar_one_or_none():
+            is_bookmarked = True
 
     return NodeDetailRead(
         id=node.id, roadmap_id=node.roadmap_id, title=node.title,
@@ -132,6 +144,8 @@ async def get_node_detail(
         order_index=node.order_index, is_optional=node.is_optional,
         difficulty=node.difficulty, estimated_hours=node.estimated_hours,
         created_at=node.created_at,
+        status=status,
+        is_bookmarked=is_bookmarked,
         dependencies=dependencies,
         dependents=dependents,
         resources=[ResourceRead.model_validate(r) for r in resources],

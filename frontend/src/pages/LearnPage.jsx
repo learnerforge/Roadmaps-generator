@@ -201,7 +201,7 @@ export default function LearnPage() {
         ) : (
           <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
             <div className="mb-4 h-16 w-16 rounded-2xl bg-accent-glow flex items-center justify-center">
-              <span className="text-2xl">📚</span>
+              <span className="text-2xl">PF</span>
             </div>
             <h2 className="mb-2 text-lg font-semibold text-white">Select a topic</h2>
             <p className="text-sm text-text-2 max-w-md">

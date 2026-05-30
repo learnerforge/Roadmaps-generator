@@ -1,17 +1,35 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from app.core.config import get_settings
 from app.db.session import init_db
 from app.routes import auth, auth_register, roadmaps, progress, ai, admin
+from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.error_handlers import (
+    http_exception_handler,
+    validation_exception_handler,
+    general_exception_handler,
+)
 
 settings = get_settings()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("pathforge")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting PathForge AI backend...")
     await init_db()
+    logger.info("Database initialized")
     yield
+    logger.info("Shutting down...")
 
 
 app = FastAPI(
@@ -27,6 +45,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(RequestLoggingMiddleware)
+
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 app.include_router(auth_register.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(auth.router, prefix="/api", tags=["User"])
