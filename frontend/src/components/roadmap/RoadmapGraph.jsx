@@ -128,8 +128,13 @@ export default function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, categor
         <Controls className="!border-border !bg-bg-3 !rounded-lg" />
         <MiniMap
           nodeColor={() => '#3a3a52'}
-          maskColor="rgba(10,10,15,0.7)"
-          className="!border-border !rounded-lg"
+          maskColor="rgba(10,10,15,0.85)"
+          style={{ background: '#16161f', border: '1px solid #2a2a3e', borderRadius: 8, width: 200, height: 150, zIndex: 15 }}
+          pannable={true}
+          zoomable={true}
+          nodeStrokeWidth={1}
+          nodeStrokeColor="#5a5a72"
+          nodeBorderRadius={4}
         />
         <Background color="#1a1a2e" gap={20} size={1} />
       </ReactFlow>
