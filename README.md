@@ -35,10 +35,10 @@ graph TB
 
         subgraph Frontend["React App Internals"]
             direction TB
-            P[Pages\nHome | Roadmaps | Dashboard | Learn | Admin | Login/Register]
-            C[Components\nNavbar | LoadingSkeleton]
-            ST[Stores\nZustand authStore]
-            L[Lib\napi.js fetch wrapper | utils.js cn()]
+            P["Pages: Home, Roadmaps, Dashboard, Learn, Admin, Login/Register"]
+            C["Components: Navbar, LoadingSkeleton"]
+            ST["Stores: Zustand authStore"]
+            L["Lib: api.js fetch wrapper, utils.js cn()"]
             P --> C
             P --> ST
             P --> L
@@ -54,27 +54,26 @@ graph TB
 
         subgraph Middleware["Middleware Stack"]
             direction LR
-            LM[RequestLogging\nlogs: METHOD /path status duration]
-            RM[RateLimit\nin-memory per-user\n30 req/min on AI endpoints]
-            EH[Error Handlers\n422 Validation | HTTPException | 500]
+            LM["RequestLogging: logs METHOD /path status duration"]
+            RM["RateLimit: in-memory per-user, 30 req/min on AI"]
+            EH["Error Handlers: 422 Validation, HTTPException, 500"]
             LM --> RM --> EH
         end
 
         subgraph Routes["Route Groups"]
-            direction TB
-            Auth[Auth\nPOST register | POST login\nGET/PATCH /me]
-            RMaps[Roadmaps\nCRUD roadmaps\nCRUD nodes\nCRUD resources]
-            Prog[Progress\nenroll | unenroll\nupdate node | dashboard]
-            Cont[Content\nfeedback CRUD\nbookmark toggle\nnotes CRUD]
-            AI[AI\nexplain | simplify\nquiz | projects | weekly]
-            Admin[Admin\nstats | users | feedback]
+            Auth["Auth: register, login, profile"]
+            RMaps["Roadmaps: CRUD roadmaps, nodes, resources"]
+            Prog["Progress: enroll, unenroll, node status, dashboard"]
+            Cont["Content: feedback, bookmarks, notes"]
+            AI["AI: explain, simplify, quiz, projects, weekly"]
+            Admin["Admin: stats, users, feedback"]
         end
 
         S[Services / Business Logic]
-        M[SQLAlchemy ORM Models\nProfile | Roadmap | RoadmapNode\nNodeDependency | UserRoadmap\nUserNodeProgress | Resource\nNote | Bookmark | AIExplanation\nQuiz | QuizAttempt | Feedback]
-        Sch[Pydantic Schemas\nrequest validation\nresponse serialization]
-        C[Core\nconfig.py env settings\nsecurity.py JWT + bcrypt]
-        U[Utils\npagination.py\nParseParams + PaginatedResponse\ndb_helpers.py\nparse_uuid + resolve_roadmap]
+        M["SQLAlchemy ORM Models\nProfile, Roadmap, RoadmapNode, NodeDependency,\nUserRoadmap, UserNodeProgress, Resource,\nNote, Bookmark, AIExplanation, Quiz, QuizAttempt, Feedback"]
+        Sch["Pydantic Schemas: request validation, response serialization"]
+        C["Core: config.py env settings, security.py JWT + bcrypt"]
+        U["Utils:\npagination.py - ParseParams + PaginatedResponse\ndb_helpers.py - parse_uuid + resolve_roadmap"]
 
         Middleware --> Routes
         Routes --> S
@@ -85,14 +84,14 @@ graph TB
     end
 
     subgraph AI_APIS["AI Service Layer"]
-        G[Google Gemini API\nprimary provider]
-        O[OpenAI API\nfallback provider]
+        G["Google Gemini API (primary)"]
+        O["OpenAI API (fallback)"]
         S --> G
         S --> O
     end
 
     subgraph Storage["Data Layer"]
-        PG[(PostgreSQL 16+)]
+        PG["(PostgreSQL 16+)"]
         M --> PG
     end
 
@@ -103,38 +102,38 @@ graph TB
 
 ```mermaid
 graph TD
-    Request[Incoming HTTP Request] --> CORS[CORS Middleware\nchecks Origin header against whitelist]
+    Request["Incoming HTTP Request"] --> CORS["CORS Middleware: checks Origin against whitelist"]
 
-    CORS --> Log[RequestLoggingMiddleware\nlogs: METHOD /api/path -> status (duration ms)\nformats: INFO pathforge]
+    CORS --> Log["RequestLoggingMiddleware\nlogs: METHOD /api/path to status (duration ms)\nformat: INFO pathforge"]
 
-    Log --> Rate[RateLimitMiddleware\nreads X-Forwarded-For or client IP\nin-memory dict: {ip: [timestamps]}\n30 requests per 60s window on /api/ai/*\npass-through for all other routes]
+    Log --> Rate["RateLimitMiddleware\nreads client IP from X-Forwarded-For\nin-memory sliding window per IP\n30 requests per 60s on /api/ai/*\npass-through for other routes"]
 
-    Rate --> Route[/api/* Path Matcher]
+    Rate --> Route["Path Matcher /api/*"]
 
     Route --> Auth{Requires Auth?}
-    Auth -->|Yes - most routes| JWT[get_current_user / get_current_admin Depends\nExtract Authorization: Bearer header\nDecode HS256 JWT → user_id + role]
+    Auth -->|Yes most routes| JWT["JWT Depends: get_current_user or get_current_admin\nExtract Authorization: Bearer header\nDecode HS256 JWT to user_id + role"]
 
-    Auth -->|No - register, login, GET roadmaps| Handler[Route Handler\nAsync def reads path/query/body params\nCalls services, queries DB, returns response]
+    Auth -->|No register login GET roadmaps| Handler["Route Handler\nAsync def reads path/query/body params\nCalls services, queries DB, returns response"]
 
-    JWT --> Valid{Valid JWT Signature & Expiry?}
-    Valid -->|Yes| Load[Load Profile from DB by user_id]
-    Valid -->|No| 401["401 Unauthorized\n{detail: 'Invalid or expired token'}"]
+    JWT --> Valid{Valid JWT?}
+    Valid -->|Yes| Load["Load Profile from DB by user_id"]
+    Valid -->|No| 401["401 Unauthorized\n{detail: Invalid or expired token}"]
 
     Load --> Handler
 
     Handler --> Success{Handler Executes}
 
-    Success -->|200 / 201| JSON["JSON Response\nPydantic schema serialization\nContent-Type: application/json"]
+    Success -->|200 or 201| JSON["JSON Response\nPydantic schema serialization\nContent-Type: application/json"]
 
-    Success -->|204| NoContent["204 No Content\nEmpty body for DELETE operations"]
+    Success -->|204| NoContent["204 No Content\nEmpty body for DELETE"]
 
     Success -->|Exception Raised| Exception{Exception Type}
 
-    Exception -->|RequestValidationError| 422["422 Unprocessable Entity\nvalidation_exception_handler\nshows field-level errors"]
+    Exception -->|RequestValidationError| 422["422 Unprocessable Entity\nvalidation_exception_handler\nfield-level errors in response"]
 
-    Exception -->|HTTPException| StatusCode["Dynamic Status Code\nhttp_exception_handler\nreturns HTTPException.status_code + detail"]
+    Exception -->|HTTPException| StatusCode["Dynamic Status Code\nhttp_exception_handler\nreturns HTTPException status_code + detail"]
 
-    Exception -->|Unhandled Exception| 500["500 Internal Server Error\ngeneral_exception_handler\nlogs traceback, returns generic message"]
+    Exception -->|Unhandled Exception| 500["500 Internal Server Error\ngeneral_exception_handler\nlogs traceback, generic message"]
 ```
 
 ### Database ERD
@@ -807,41 +806,41 @@ graph TB
     subgraph Measures["Implemented Security Measures"]
         direction TB
 
-        subgraph AuthN_AuthZ["Authentication & Authorization"]
-            A1[Register] --> A1a[Password hashed with bcrypt\n12 salt rounds\nbefore DB insert]
-            A2[Login] --> A2a[Verify password hash\nIssue JWT with user_id + role]
-            A3[JWT Token] --> A3a[Algorithm: HS256\nPayload: sub, role, exp, iat\nExpiry: configurable via JWT_EXPIRY_MINUTES\nSecret: from JWT_SECRET env var]
-            A4[Protected Routes] --> A4a[get_current_user Depends\nExtracts Bearer token\nDecodes JWT → loads Profile\n403 if invalid/missing]
-            A5[Admin Routes] --> A5a[get_current_admin Depends\nChecks role in ['admin', 'super_admin']\n403 if insufficient role]
-            A6[Super Admin] --> A6a[Role check in endpoint body\nOnly super_admin can PATCH /users/{id}/role]
+        subgraph AuthN_AuthZ["Authentication and Authorization"]
+            A1["Register"] --> A1a["Password hashed with bcrypt, 12 salt rounds, before DB insert"]
+            A2["Login"] --> A2a["Verify password hash, issue JWT with user_id and role"]
+            A3["JWT Token"] --> A3a["Algorithm: HS256\nPayload: sub, role, exp, iat\nExpiry: configurable via JWT_EXPIRY_MINUTES\nSecret: from JWT_SECRET env var"]
+            A4["Protected Routes"] --> A4a["get_current_user Depends\nExtracts Bearer token\nDecodes JWT, loads Profile\n403 if invalid or missing"]
+            A5["Admin Routes"] --> A5a["get_current_admin Depends\nChecks role is admin or super_admin\n403 if insufficient role"]
+            A6["Super Admin"] --> A6a["Role check in endpoint body\nOnly super_admin can PATCH users role"]
         end
 
         subgraph DataProtection["Data Protection"]
-            D1[SQLAlchemy ORM] --> D1a[Parameterized queries\nNo raw SQL interpolation\nPrevents SQL injection]
-            D2[Foreign Keys] --> D2a[ondelete CASCADE for owned\nresources (progress, notes, bookmarks)\nondelete SET NULL for optional\nreferences (feedback → node)]
-            D3[Register Race Condition] --> D3a[No pre-check SELECT\nUnique constraint on email\n409 Conflict on duplicate]
+            D1["SQLAlchemy ORM"] --> D1a["Parameterized queries\nNo raw SQL interpolation\nPrevents SQL injection"]
+            D2["Foreign Keys"] --> D2a["ondelete CASCADE for owned resources\n(progress, notes, bookmarks)\nondelete SET NULL for optional\nreferences (feedback to node)"]
+            D3["Register Race Condition"] --> D3a["No pre-check SELECT\nUnique constraint on email\n409 Conflict on duplicate"]
         end
 
         subgraph NetworkProtection["Network Protection"]
-            N1[CORS Middleware] --> N1a[Origin whitelist from\nCORS_ORIGINS env var\nBlocks unauthorized origins]
-            N2[Rate Limiting] --> N2a[In-memory sliding window\nPer IP address\n30 requests / 60 seconds\nOnly on /api/ai/* endpoints]
+            N1["CORS Middleware"] --> N1a["Origin whitelist from\nCORS_ORIGINS env var\nBlocks unauthorized origins"]
+            N2["Rate Limiting"] --> N2a["In-memory sliding window\nPer IP address\n30 requests per 60 seconds\nOnly on /api/ai/ endpoints"]
         end
 
         subgraph FrontendProtection["Frontend Protections"]
-            F1[401 Interceptor] --> F1a[api.js handleResponse\nOn 401: clear token, redirect /login\nPrevents infinite auth loops]
-            F2[Route Guards] --> F2a[ProtectedRoute: redirect /login\nGuestRoute: redirect /dashboard\nAdminRoute: check role, redirect /]
-            F3[Token Storage] --> F3a[localStorage only\nNo httpOnly cookies\nXSS protection via React]
+            F1["401 Interceptor"] --> F1a["api.js handleResponse\nOn 401: clear token, redirect to login\nPrevents infinite auth loops"]
+            F2["Route Guards"] --> F2a["ProtectedRoute: redirect to login\nGuestRoute: redirect to dashboard\nAdminRoute: check role, redirect to /"]
+            F3["Token Storage"] --> F3a["localStorage only\nNo httpOnly cookies\nXSS protection via React"]
         end
     end
 
     subgraph Recommended["Production Hardening"]
-        R1[Use strong JWT_SECRET\nvia environment variable]
-        R2[Enable HTTPS\nvia reverse proxy]
-        R3[Short JWT expiry\n15-30 minutes + refresh tokens]
-        R4[Redis-backed rate limiting\nshared across workers]
-        R5[Connection pool limits\ntune pool_size + max_overflow]
-        R6[Add CSRF protection\nfor cookie-based auth]
-        R7[Security headers\nCSP, HSTS, X-Frame-Options]
+        R1["Use strong JWT_SECRET via env var"]
+        R2["Enable HTTPS via reverse proxy"]
+        R3["Short JWT expiry: 15-30 minutes with refresh tokens"]
+        R4["Redis-backed rate limiting shared across workers"]
+        R5["Connection pool limits: tune pool_size and max_overflow"]
+        R6["Add CSRF protection for cookie-based auth"]
+        R7["Security headers: CSP, HSTS, X-Frame-Options"]
     end
 ```
 
