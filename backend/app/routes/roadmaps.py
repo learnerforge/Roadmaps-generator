@@ -33,7 +33,6 @@ async def list_roadmaps(
     category: Optional[str] = None,
     difficulty: Optional[str] = None,
     search: Optional[str] = None,
-    pagination: PaginationParams = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Roadmap).where(Roadmap.is_published == True)
@@ -43,11 +42,7 @@ async def list_roadmaps(
         query = query.where(Roadmap.difficulty == difficulty)
     if search:
         query = query.where(Roadmap.title.ilike(f"%{search}%"))
-
-    total_q = select(func.count()).select_from(query.subquery())
-    total = (await db.execute(total_q)).scalar() or 0
-
-    query = query.order_by(Roadmap.created_at.desc()).offset(pagination.offset).limit(pagination.per_page)
+    query = query.order_by(Roadmap.created_at.desc())
     result = await db.execute(query)
     roadmaps = result.scalars().all()
 
@@ -258,9 +253,28 @@ async def get_roadmap(slug: str, db: AsyncSession = Depends(get_db)):
         .order_by(RoadmapNode.order_index)
     )
     nodes = nodes_result.scalars().all()
+    nodes_map = {str(n.id): n for n in nodes}
+
+    edges_result = await db.execute(
+        select(NodeDependency).where(
+            NodeDependency.node_id.in_([n.id for n in nodes])
+        )
+    )
+    edges = [
+        {
+            "id": f"{dep.depends_on_node_id}_{dep.node_id}",
+            "source": str(dep.depends_on_node_id),
+            "target": str(dep.node_id),
+        }
+        for dep in edges_result.scalars().all()
+        if str(dep.depends_on_node_id) in nodes_map
+        and str(dep.node_id) in nodes_map
+    ]
+
     return {
         "roadmap": roadmap,
         "nodes": nodes,
+        "edges": edges,
     }
 
 

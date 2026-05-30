@@ -18,6 +18,8 @@ EXCLUDE_DIRS = {"content", "assets", "resources"}
 
 ROADMAP_META = {
     "frontend": {"title": "Frontend Developer", "category": "role-based", "difficulty": "beginner", "description": "Step by step guide to becoming a modern frontend developer in 2026."},
+    "shell-bash": {"title": "Shell & Bash", "category": "skill-based", "difficulty": "beginner", "description": "Shell scripting and Bash: command line, automation, pipes, and scripting best practices."},
+    "wordpress": {"title": "WordPress", "category": "skill-based", "difficulty": "beginner", "description": "WordPress: themes, plugins, block editor, REST API, and headless WordPress."},
     "backend": {"title": "Backend Developer", "category": "role-based", "difficulty": "beginner", "description": "Step by step guide to becoming a backend developer in 2026."},
     "full-stack": {"title": "Full Stack Developer", "category": "role-based", "difficulty": "intermediate", "description": "Complete full-stack development roadmap covering frontend, backend, databases, and DevOps."},
     "devops": {"title": "DevOps", "category": "role-based", "difficulty": "intermediate", "description": "DevOps roadmap covering CI/CD, cloud, containerization, monitoring, and IaC."},
@@ -103,6 +105,8 @@ ROADMAP_META = {
     "api-design": {"title": "API Design", "category": "skill-based", "difficulty": "intermediate", "description": "API design: REST, GraphQL, versioning, documentation, and best practices."},
     "aws-best-practices": {"title": "AWS Best Practices", "category": "devops", "difficulty": "advanced", "description": "AWS best practices: Well-Architected Framework, security, cost optimization, and reliability."},
     "api-security-best-practices": {"title": "API Security Best Practices", "category": "devops", "difficulty": "intermediate", "description": "API security: authentication, authorization, rate limiting, and threat protection."},
+    "server-side-game-developer": {"title": "Server-Side Game Developer", "category": "role-based", "difficulty": "advanced", "description": "Server-side game development: game servers, networking, matchmaking, and backend systems."},
+    "software-design-architecture": {"title": "Software Design & Architecture", "category": "skill-based", "difficulty": "advanced", "description": "Software design and architecture: SOLID, design patterns, clean architecture, and system design."},
     "backend-performance-best-practices": {"title": "Backend Performance", "category": "devops", "difficulty": "advanced", "description": "Backend performance: caching, database optimization, profiling, and scaling."},
     "frontend-performance-best-practices": {"title": "Frontend Performance", "category": "devops", "difficulty": "intermediate", "description": "Frontend performance: Core Web Vitals, lazy loading, bundle optimization, and rendering."},
     "code-review-best-practices": {"title": "Code Review Best Practices", "category": "devops", "difficulty": "beginner", "description": "Code review best practices: review workflows, constructive feedback, and automation."},
@@ -118,6 +122,44 @@ async def fetch_json(client: httpx.AsyncClient, slug: str) -> dict | None:
     except Exception:
         pass
     return None
+
+
+async def fetch_markdown_topics(client: httpx.AsyncClient, slug: str) -> list[dict]:
+    """Parse markdown content filenames into topic-like node dicts."""
+    content_url = f"{API_BASE}/{slug}/content"
+    for attempt in range(3):
+        try:
+            resp = await client.get(content_url, timeout=15)
+            if resp.status_code == 200:
+                items = resp.json()
+                break
+            elif resp.status_code == 403 and attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            return []
+        except Exception:
+            if attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            return []
+    else:
+        return []
+
+    topics = []
+    for item in items:
+        if item["type"] != "file" or not item["name"].endswith(".md"):
+            continue
+        name = item["name"]
+        label = name.rsplit("@", 1)[0].replace("-", " ").replace("_", " ").title()
+
+        topic = {
+            "type": "topic",
+            "data": {"label": label},
+            "description": None,
+        }
+        topics.append(topic)
+
+    return topics
 
 
 async def seed():
@@ -145,6 +187,7 @@ async def seed():
         total_deps = 0
 
         for slug in sorted(dirs):
+            await asyncio.sleep(0.5)
             existing = await db.execute(select(Roadmap).where(Roadmap.slug == slug))
             if existing.scalar_one_or_none():
                 print(f"  Skipping {slug} (already exists)")
@@ -156,16 +199,25 @@ async def seed():
                 continue
 
             data = await fetch_json(client, slug)
-            if not data:
-                print(f"  Skipping {slug} (no JSON data)")
-                continue
+            topic_nodes = []
+            edges_data = []
+            is_markdown = False
 
-            nodes_data = data.get("nodes", [])
-            edges_data = data.get("edges", [])
+            if data:
+                nodes_data = data.get("nodes", [])
+                edges_data = data.get("edges", [])
+                topic_nodes = [n for n in nodes_data if n.get("type") in ("topic", "subtopic")]
 
-            topic_nodes = [n for n in nodes_data if n.get("type") in ("topic", "subtopic")]
             if not topic_nodes:
-                print(f"  Skipping {slug} (no topic/subtopic nodes)")
+                # Fallback: try markdown content
+                md_topics = await fetch_markdown_topics(client, slug)
+                if md_topics:
+                    topic_nodes = md_topics
+                    is_markdown = True
+                    print(f"  Parsed {len(topic_nodes)} topics from markdown for {slug}")
+
+            if not topic_nodes:
+                print(f"  Skipping {slug} (no data)")
                 continue
 
             roadmap = Roadmap(
@@ -187,6 +239,7 @@ async def seed():
                 position = n.get("position", {})
                 source_id = n.get("id")
                 label = n.get("data", {}).get("label", "Untitled")
+                description = n.get("description") if is_markdown else None
                 w = n.get("width")
                 h = n.get("height")
 
@@ -195,7 +248,7 @@ async def seed():
                     source_node_id=source_id,
                     node_type="topic",
                     title=label,
-                    description=None,
+                    description=description,
                     why_important=None,
                     category=None,
                     position_x=position.get("x", 0),
@@ -206,7 +259,8 @@ async def seed():
                 )
                 db.add(db_node)
                 await db.flush()
-                node_map[source_id] = db_node.id
+                if source_id:
+                    node_map[source_id] = db_node.id
                 total_nodes += 1
 
             dep_count = 0

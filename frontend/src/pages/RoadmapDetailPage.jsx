@@ -2,28 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiGet, apiPost } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
-
-function NodeCard({ node }) {
-  return (
-    <div className="rounded-lg border border-border bg-bg-2 p-4 hover:border-accent/30 transition-colors">
-      <div className="flex items-start justify-between">
-        <h3 className="text-sm font-medium text-white">{node.title}</h3>
-        {node.is_optional && (
-          <span className="rounded bg-amber-dim px-1.5 py-0.5 text-[9px] font-mono text-amber">
-            optional
-          </span>
-        )}
-      </div>
-      {node.description && (
-        <p className="mt-1 text-xs text-text-3 line-clamp-2">{node.description}</p>
-      )}
-      <div className="mt-2 flex items-center gap-3 text-[10px] text-text-3">
-        <span>{node.difficulty || 'beginner'}</span>
-        <span>{node.estimated_hours ?? 2}h</span>
-      </div>
-    </div>
-  )
-}
+import RoadmapGraph from '../components/roadmap/RoadmapGraph'
 
 export default function RoadmapDetailPage() {
   const { slug } = useParams()
@@ -31,6 +10,7 @@ export default function RoadmapDetailPage() {
   const navigate = useNavigate()
   const [roadmap, setRoadmap] = useState(null)
   const [nodes, setNodes] = useState([])
+  const [edges, setEdges] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [enrolling, setEnrolling] = useState(false)
@@ -46,6 +26,7 @@ export default function RoadmapDetailPage() {
       const data = await apiGet(`/roadmaps/${slug}`)
       setRoadmap(data.roadmap)
       setNodes(data.nodes || [])
+      setEdges(data.edges || [])
     } catch (err) {
       console.error('Failed to load roadmap:', err)
       setError(err.message)
@@ -104,14 +85,11 @@ export default function RoadmapDetailPage() {
     )
   }
 
-  const categories = [...new Set(nodes.map((n) => n.category).filter(Boolean))]
-
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-5xl px-4 py-12">
-        {/* Header */}
-        <div className="mb-10">
-          <div className="mb-4 flex items-center gap-3">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="mb-6">
+          <div className="mb-3 flex items-center gap-3">
             <span className="rounded-md border border-border bg-bg-3 px-2 py-0.5 text-[10px] font-mono uppercase text-text-3">
               {roadmap.category}
             </span>
@@ -123,10 +101,11 @@ export default function RoadmapDetailPage() {
                 ~{roadmap.estimated_hours} hours
               </span>
             )}
+            <span className="text-[10px] font-mono text-text-3">{nodes.length} topics</span>
           </div>
-          <h1 className="mb-3 text-3xl font-bold text-white">{roadmap.title}</h1>
+          <h1 className="mb-2 text-3xl font-bold text-white">{roadmap.title}</h1>
           <p className="max-w-2xl text-text-2 leading-relaxed">{roadmap.description}</p>
-          <div className="mt-6 flex items-center gap-4">
+          <div className="mt-4 flex items-center gap-4">
             <button
               onClick={handleStart}
               disabled={enrolling}
@@ -134,54 +113,14 @@ export default function RoadmapDetailPage() {
             >
               {enrolling ? 'Starting...' : 'Start This Roadmap'}
             </button>
-            <span className="text-xs text-text-3">{nodes.length} topics</span>
           </div>
           {enrollError && (
             <p className="mt-2 text-sm text-red">{enrollError}</p>
           )}
         </div>
 
-        {/* Node Map */}
         {nodes.length > 0 ? (
-          categories.length > 0 ? (
-            <div className="space-y-8">
-              {categories.map((cat) => (
-                <div key={cat}>
-                  <h2 className="mb-4 text-sm font-semibold text-accent uppercase tracking-wider">
-                    {cat}
-                  </h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {nodes
-                      .filter((n) => n.category === cat)
-                      .map((node) => (
-                        <NodeCard key={node.id} node={node} />
-                      ))}
-                  </div>
-                </div>
-              ))}
-              {/* Show un-categorized nodes at the bottom if any */}
-              {nodes.some((n) => !n.category) && (
-                <div>
-                  <h2 className="mb-4 text-sm font-semibold text-text-3 uppercase tracking-wider">
-                    General
-                  </h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {nodes
-                      .filter((n) => !n.category)
-                      .map((node) => (
-                        <NodeCard key={node.id} node={node} />
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {nodes.map((node) => (
-                <NodeCard key={node.id} node={node} />
-              ))}
-            </div>
-          )
+          <RoadmapGraph nodes={nodes} edges={edges} category={roadmap.category} />
         ) : (
           <div className="rounded-xl border border-border bg-bg-2 p-8 text-center text-text-3">
             No topics added to this roadmap yet.

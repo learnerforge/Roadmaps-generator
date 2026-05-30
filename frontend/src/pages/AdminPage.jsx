@@ -18,12 +18,12 @@ export default function AdminPage() {
       setError(null)
       const [statsData, usersData, feedbackData] = await Promise.all([
         apiGet('/admin/stats'),
-        apiGet('/admin/users').catch(() => []),
-        apiGet('/admin/feedback').catch(() => []),
+        apiGet('/admin/users').catch(() => ({ items: [] })),
+        apiGet('/admin/feedback').catch(() => ({ items: [] })),
       ])
       setStats(statsData)
-      setUsers(usersData)
-      setFeedback(feedbackData)
+      setUsers(usersData.items || usersData)
+      setFeedback(feedbackData.items || feedbackData)
     } catch (err) {
       console.error('Failed to load admin data:', err)
       setError(err.message)
