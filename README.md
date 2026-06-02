@@ -1,10 +1,10 @@
 # PathForge AI — AI-Powered Career Roadmap Platform
 
-Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **76+ real roadmaps from roadmap.sh**, enriches every topic with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **86 real roadmaps from roadmap.sh**, visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
 
 ## Features
 
-- **76+ Role & Skill Roadmaps** — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
+- **86 Role & Skill Roadmaps** — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
 - **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node
 - **Adaptive Quizzes** — Generate multiple-choice questions per topic to test understanding
 - **Project Suggestions** — Get coding project ideas based on completed topics
@@ -12,7 +12,8 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 - **Progress Tracking** — Mark nodes complete/in-progress/skipped, track completion %, dashboard with streaks
 - **User Notes & Bookmarks** — Save personal notes per node, bookmark topics for later
 - **Node Dependencies** — Prerequisite and follow-up topic graph
-- **User Auth** — Email/password registration with JWT + bcrypt, race-condition safe
+- **Interactive Node Graph** — React Flow graph visualisation with zoom/pan, minimap, and click-to-highlight connections
+- **User Auth** — Email/password + Google/GitHub OAuth with JWT + bcrypt, race-condition safe
 - **Admin Dashboard** — Platform stats, user management, feedback moderation
 
 ## Tech Stack
@@ -29,111 +30,103 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 ## Architecture
 
 ```mermaid
-graph TB
-    subgraph Client["Client Layer"]
-        B[Browser] --> F[React SPA]
-
-        subgraph Frontend["React App Internals"]
-            direction TB
-            P["Pages: Home, Roadmaps, Dashboard, Learn, Admin, Login/Register"]
-            C["Components: Navbar, LoadingSkeleton"]
-            ST["Stores: Zustand authStore"]
-            L["Lib: api.js fetch wrapper, utils.js cn()"]
-            P --> C
-            P --> ST
-            P --> L
-            ST --> L
-        end
-
-        F --> P
-        F --> A[API Client / fetch]
-    end
-
-    subgraph Server["Server Layer (FastAPI)"]
+flowchart TB
+    subgraph CLIENT["Client Layer"]
         direction TB
+        Browser["Browser"]
+        SPA["React SPA"]
+        Pages["Pages\nHome, Roadmaps, Dashboard,\nLearn, Admin, Auth"]
+        Components["Components\nNavbar, RoadmapGraph,\nLoadingSkeleton"]
+        Store["Zustand Store\nauthStore"]
+        API["API Client\nfetch wrapper"]
 
-        subgraph Middleware["Middleware Stack"]
-            direction LR
-            LM["RequestLogging: logs METHOD /path status duration"]
-            RM["RateLimit: in-memory per-user, 30 req/min on AI"]
-            EH["Error Handlers: 422 Validation, HTTPException, 500"]
-            LM --> RM --> EH
-        end
-
-        subgraph Routes["Route Groups"]
-            Auth["Auth: register, login, profile"]
-            RMaps["Roadmaps: CRUD roadmaps, nodes, resources"]
-            Prog["Progress: enroll, unenroll, node status, dashboard"]
-            Cont["Content: feedback, bookmarks, notes"]
-            AI["AI: explain, simplify, quiz, projects, weekly"]
-            Admin["Admin: stats, users, feedback"]
-        end
-
-        S[Services / Business Logic]
-        M["SQLAlchemy ORM Models\nProfile, Roadmap, RoadmapNode, NodeDependency,\nUserRoadmap, UserNodeProgress, Resource,\nNote, Bookmark, AIExplanation, Quiz, QuizAttempt, Feedback"]
-        Sch["Pydantic Schemas: request validation, response serialization"]
-        C["Core: config.py env settings, security.py JWT + bcrypt"]
-        U["Utils:\npagination.py - ParseParams + PaginatedResponse\ndb_helpers.py - parse_uuid + resolve_roadmap"]
-
-        Middleware --> Routes
-        Routes --> S
-        Routes --> M
-        Routes --> Sch
-        Routes --> C
-        Routes --> U
+        Browser --> SPA
+        SPA --> Pages
+        SPA --> API
+        Pages --> Components
+        Pages --> Store
+        Store --> API
     end
 
-    subgraph AI_APIS["AI Service Layer"]
-        G["Google Gemini API (primary)"]
-        O["OpenAI API (fallback)"]
-        S --> G
-        S --> O
+    subgraph GATEWAY["API Gateway"]
+        direction TB
+        CORS["CORS Middleware\norigin whitelist"]
+        Logging["RequestLogging\nmethod/path/status/duration"]
+        RateLimit["RateLimit\n30 req/min per IP on AI routes"]
+
+        CORS --> Logging --> RateLimit
     end
 
-    subgraph Storage["Data Layer"]
-        PG["(PostgreSQL 16+)"]
-        M --> PG
+    subgraph SERVER["FastAPI Server"]
+        direction TB
+        Routes["Route Groups\nAuth, Roadmaps, Progress,\nContent, AI, Admin"]
+        Services["Services\nBusiness Logic + AI Service"]
+        ORM["SQLAlchemy ORM\n10 entity models"]
+        Schemas["Pydantic Schemas\nvalidation + serialization"]
+        Utils["Utilities\npagination, db_helpers"]
+        Core["Core\nconfig, security"]
+
+        RateLimit --> Routes
+        Routes --> Services
+        Routes --> ORM
+        Routes --> Schemas
+        Routes --> Utils
+        Routes --> Core
     end
 
-    A --> Middleware
+    subgraph AI_PROVIDERS["AI Providers"]
+        direction TB
+        Gemini["Google Gemini API\nprimary"]
+        OpenAI["OpenAI API\nfallback"]
+    end
+
+    subgraph STORAGE["Data Layer"]
+        PG[("PostgreSQL 16+")]
+    end
+
+    API -->|"HTTP"| CORS
+    Services --> Gemini
+    Services --> OpenAI
+    ORM --> PG
 ```
 
 ### Middleware & Error Handling Flow
 
 ```mermaid
-graph TD
-    Request["Incoming HTTP Request"] --> CORS["CORS Middleware: checks Origin against whitelist"]
+flowchart TD
+    subgraph PRE["Pre-Handler Pipeline"]
+        Request["Incoming HTTP Request"]
+        CORS["CORS Middleware\nwhitelist check"]
+        Logging["RequestLogging\nMETHOD /api/path status duration"]
+        Rate["RateLimit\n30 req/60s per IP on /api/ai/*"]
+        RouteMatch["Path Matcher\n/api/*"]
 
-    CORS --> Log["RequestLoggingMiddleware\nlogs: METHOD /api/path to status (duration ms)\nformat: INFO pathforge"]
+        Request --> CORS
+        CORS --> Logging
+        Logging --> Rate
+        Rate --> RouteMatch
+    end
 
-    Log --> Rate["RateLimitMiddleware\nreads client IP from X-Forwarded-For\nin-memory sliding window per IP\n30 requests per 60s on /api/ai/*\npass-through for other routes"]
+    subgraph AUTH["Authentication Gate"]
+        RouteMatch --> NeedsAuth{Requires Auth?}
+        NeedsAuth -->|"Yes: most routes"| JWT["JWT Verification\nget_current_user / get_current_admin\nExtract Bearer, decode HS256"]
+        NeedsAuth -->|"No: register, login,\nGET roadmaps"| Handler["Route Handler\nasync reads params\ncalls services, queries DB"]
 
-    Rate --> Route["Path Matcher /api/*"]
+        JWT --> ValidJWT{Valid JWT?}
+        ValidJWT -->|"Yes"| LoadProfile["Load Profile from DB\nby user_id"]
+        ValidJWT -->|"No"| Err401["401 Unauthorized\ninvalid or expired token"]
+        LoadProfile --> Handler
+    end
 
-    Route --> Auth{Requires Auth?}
-    Auth -->|Yes most routes| JWT["JWT Depends: get_current_user or get_current_admin\nExtract Authorization: Bearer header\nDecode HS256 JWT to user_id + role"]
-
-    Auth -->|No register login GET roadmaps| Handler["Route Handler\nAsync def reads path/query/body params\nCalls services, queries DB, returns response"]
-
-    JWT --> Valid{Valid JWT?}
-    Valid -->|Yes| Load["Load Profile from DB by user_id"]
-    Valid -->|No| 401["401 Unauthorized\n{detail: Invalid or expired token}"]
-
-    Load --> Handler
-
-    Handler --> Success{Handler Executes}
-
-    Success -->|200 or 201| JSON["JSON Response\nPydantic schema serialization\nContent-Type: application/json"]
-
-    Success -->|204| NoContent["204 No Content\nEmpty body for DELETE"]
-
-    Success -->|Exception Raised| Exception{Exception Type}
-
-    Exception -->|RequestValidationError| 422["422 Unprocessable Entity\nvalidation_exception_handler\nfield-level errors in response"]
-
-    Exception -->|HTTPException| StatusCode["Dynamic Status Code\nhttp_exception_handler\nreturns HTTPException status_code + detail"]
-
-    Exception -->|Unhandled Exception| 500["500 Internal Server Error\ngeneral_exception_handler\nlogs traceback, generic message"]
+    subgraph POST["Post-Handler Responses"]
+        Handler --> Result{Handler Result}
+        Result -->|"200 / 201"| JSON["JSON Response\nPydantic serialization\napplication/json"]
+        Result -->|"204"| NoContent["204 No Content\nempty body for DELETE"]
+        Result -->|"Exception raised"| ExceptionType{Exception Type}
+        ExceptionType -->|"RequestValidationError"| Err422["422 Unprocessable Entity\nfield-level error detail"]
+        ExceptionType -->|"HTTPException"| ErrStatus["Status from exception\nreturns status_code + detail"]
+        ExceptionType -->|"Unhandled"| Err500["500 Internal Server Error\ntraceback logged, generic message"]
+    end
 ```
 
 ### Database ERD
@@ -337,7 +330,7 @@ copy .env.example .env        # Windows
 # Create the database (edit credentials as needed)
 createdb pathforge
 
-# Seed 76+ roadmaps with real data from roadmap.sh
+# Seed 86 roadmaps with real data from roadmap.sh
 python -m seed_data
 
 # Start development server
@@ -381,10 +374,11 @@ The seed script (`backend/seed_data.py`):
 2. Downloads each roadmap's **React Flow JSON** file (e.g., `frontend.json`)
 3. Extracts **topic nodes** (filters out labels, buttons, paragraphs)
 4. Parses **edges** to build `NodeDependency` records
-5. Maps each roadmap to a hardcoded metadata entry (title, category, difficulty, description)
-6. Inserts everything into PostgreSQL — **76+ roadmaps with thousands of real nodes**
+5. For roadmaps that have migrated from JSON to markdown content files, falls back to `fetch_markdown_topics()` — parses filenames in `{slug}/content/` into flat topic lists
+6. Maps each roadmap to a hardcoded metadata entry (title, category, difficulty, description)
+7. Inserts everything into PostgreSQL — **86 roadmaps with 9,501 real nodes and 2,215 dependency edges**
 
-The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped.
+The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped. 3-attempt retry logic handles transient GitHub API failures.
 
 ## API Reference
 
@@ -477,7 +471,8 @@ GET /api/roadmaps/frontend
 # Response: 200
 {
   "roadmap": { "id": "uuid", "title": "Frontend Developer", ... },
-  "nodes": [...]
+  "nodes": [...],
+  "edges": [{ "id": "uuid", "source": "uuid", "target": "uuid" }]
 }
 
 # Node detail with dependencies, status, resources
@@ -681,9 +676,9 @@ Authorization: Bearer <admin-token>
 # Response: 200
 {
   "total_users": 42,
-  "total_roadmaps": 76,
-  "published_roadmaps": 76,
-  "total_nodes": 5400,
+  "total_roadmaps": 86,
+  "published_roadmaps": 86,
+  "total_nodes": 9501,
   "open_feedback": 3
 }
 
@@ -708,175 +703,151 @@ Content-Type: application/json
 
 ## File Structure
 
-```bash
-backend/
-├── app/
-│   ├── core/
-│   │   ├── config.py             # Pydantic settings from env
-│   │   └── security.py           # JWT, bcrypt, auth deps
-│   ├── db/
-│   │   └── session.py            # Async engine, session factory, Base
-│   ├── middleware/
-│   │   ├── logging.py            # RequestLoggingMiddleware (method/path/status/duration)
-│   │   ├── error_handlers.py     # HTTP, Validation, 500 handlers
-│   │   └── rate_limit.py         # In-memory per-user rate limiter for AI endpoints
-│   ├── models/                   # SQLAlchemy ORM models
-│   │   ├── user.py               # Profile
-│   │   ├── roadmap.py            # Roadmap, RoadmapNode, NodeDependency
-│   │   ├── progress.py           # UserRoadmap, UserNodeProgress
-│   │   ├── content.py            # Note, Bookmark, AIExplanation
-│   │   ├── quiz.py               # Quiz, QuizAttempt
-│   │   ├── resource.py           # Resource
-│   │   └── feedback.py           # Feedback
-│   ├── schemas/                  # Pydantic request/response
-│   │   ├── roadmap.py
-│   │   ├── user.py               # ProfileRead includes email
-│   │   └── progress.py           # FeedbackRead, NoteRead, BookmarkToggleResponse
-│   ├── routes/
-│   │   ├── auth_register.py      # POST /register (201), POST /login
-│   │   ├── auth.py               # GET /me, PATCH /me
-│   │   ├── roadmaps.py           # CRUD roadmaps/nodes/resources
-│   │   ├── progress.py           # Enroll, unenroll, update node, dashboard
-│   │   ├── content.py            # Feedback, bookmarks, notes CRUD
-│   │   ├── ai.py                 # Explain, simplify, quiz, projects, weekly
-│   │   └── admin.py              # Stats, users, feedback
-│   ├── services/
-│   │   └── ai_service.py         # Gemini primary + OpenAI fallback
-│   ├── utils/
-│   │   ├── pagination.py         # PaginationParams + PaginatedResponse
-│   │   └── db_helpers.py         # parse_uuid, resolve_roadmap (shared)
-│   └── main.py                   # FastAPI app, middleware stack, router registration
-├── tests/
-│   ├── conftest.py               # Async test fixtures, DB reset per test
-│   ├── test_auth.py              # Register, login, profile (11)
-│   ├── test_roadmaps.py          # CRUD, nodes, resources (21)
-│   ├── test_progress.py          # Enroll, progress, dashboard (11)
-│   └── test_admin.py             # Stats, users, feedback (8)
-├── alembic/
-│   ├── env.py
-│   ├── versions/
-│   │   └── 001_initial_schema.py
-│   └── alembic.ini
-├── seed_data.py                  # Scrapes 76+ roadmaps from GitHub
-├── requirements.txt
-├── Dockerfile
-├── .env.example
-└── pytest.ini
-
-frontend/
-├── src/
-│   ├── pages/
-│   │   ├── HomePage.jsx          # Landing page
-│   │   ├── RoadmapsPage.jsx      # Browse all roadmaps
-│   │   ├── RoadmapDetailPage.jsx # Single roadmap detail
-│   │   ├── LearnPage.jsx         # Interactive learning view
-│   │   ├── DashboardPage.jsx     # User dashboard
-│   │   ├── LoginPage.jsx
-│   │   ├── RegisterPage.jsx
-│   │   └── AdminPage.jsx         # Admin panel
-│   ├── components/
-│   │   ├── layout/
-│   │   │   └── Navbar.jsx        # Top nav with mobile hamburger
-│   │   └── shared/
-│   │       └── LoadingSkeleton.jsx
-│   ├── lib/
-│   │   ├── api.js                # fetch wrapper with 401 interceptor
-│   │   └── utils.js              # cn() helper (clsx + tailwind-merge)
-│   ├── stores/
-│   │   └── authStore.js          # Zustand auth state
-│   ├── test/
-│   │   ├── setup.js              # @testing-library/jest-dom imports
-│   │   ├── api.test.js           # API client tests (10)
-│   │   ├── authStore.test.js     # Zustand store tests (7)
-│   │   ├── utils.test.js         # cn() utility tests (5)
-│   │   ├── Navbar.test.jsx       # Navbar rendering tests (5)
-│   │   └── App.test.jsx          # Route guard tests (7)
-│   └── App.jsx                   # Router, ProtectedRoute, GuestRoute, AdminRoute
-├── package.json
-├── vite.config.js                # Vitest config integrated
-├── Dockerfile
-├── .eslintrc.cjs
-└── .prettierrc
+```mermaid
+mindmap
+  root(("PathForge"))
+    backend
+      app
+        core
+          config.py
+          security.py
+        db
+          session.py
+        middleware
+          logging.py
+          error_handlers.py
+          rate_limit.py
+        models
+          user.py
+          roadmap.py
+          progress.py
+          content.py
+          quiz.py
+          resource.py
+          feedback.py
+        schemas
+          roadmap.py
+          user.py
+          progress.py
+        routes
+          auth_register.py
+          auth.py
+          roadmaps.py
+          progress.py
+          content.py
+          ai.py
+          admin.py
+        services
+          ai_service.py
+        utils
+          pagination.py
+          db_helpers.py
+        main.py
+      alembic
+        env.py
+        alembic.ini
+        versions
+          001_initial_schema.py
+      seed_data.py
+      requirements.txt
+      Dockerfile
+      .env.example
+    frontend
+      src
+        pages
+          HomePage.jsx
+          RoadmapsPage.jsx
+          RoadmapDetailPage.jsx
+          LearnPage.jsx
+          DashboardPage.jsx
+          LoginPage.jsx
+          RegisterPage.jsx
+          AdminPage.jsx
+        components
+          layout
+            Navbar.jsx
+          roadmap
+            RoadmapGraph.jsx
+          shared
+            LoadingSkeleton.jsx
+        lib
+          api.js
+        stores
+          authStore.js
+        App.jsx
+      package.json
+      vite.config.js
+      Dockerfile
+      .eslintrc.cjs
+      .prettierrc
 ```
 
 ## Security
 
 ```mermaid
-graph TB
-    subgraph Measures["Implemented Security Measures"]
+flowchart TB
+    subgraph AUTH["Authentication & Authorization"]
         direction TB
-
-        subgraph AuthN_AuthZ["Authentication and Authorization"]
-            A1["Register"] --> A1a["Password hashed with bcrypt, 12 salt rounds, before DB insert"]
-            A2["Login"] --> A2a["Verify password hash, issue JWT with user_id and role"]
-            A3["JWT Token"] --> A3a["Algorithm: HS256\nPayload: sub, role, exp, iat\nExpiry: configurable via JWT_EXPIRY_MINUTES\nSecret: from JWT_SECRET env var"]
-            A4["Protected Routes"] --> A4a["get_current_user Depends\nExtracts Bearer token\nDecodes JWT, loads Profile\n403 if invalid or missing"]
-            A5["Admin Routes"] --> A5a["get_current_admin Depends\nChecks role is admin or super_admin\n403 if insufficient role"]
-            A6["Super Admin"] --> A6a["Role check in endpoint body\nOnly super_admin can PATCH users role"]
-        end
-
-        subgraph DataProtection["Data Protection"]
-            D1["SQLAlchemy ORM"] --> D1a["Parameterized queries\nNo raw SQL interpolation\nPrevents SQL injection"]
-            D2["Foreign Keys"] --> D2a["ondelete CASCADE for owned resources\n(progress, notes, bookmarks)\nondelete SET NULL for optional\nreferences (feedback to node)"]
-            D3["Register Race Condition"] --> D3a["No pre-check SELECT\nUnique constraint on email\n409 Conflict on duplicate"]
-        end
-
-        subgraph NetworkProtection["Network Protection"]
-            N1["CORS Middleware"] --> N1a["Origin whitelist from\nCORS_ORIGINS env var\nBlocks unauthorized origins"]
-            N2["Rate Limiting"] --> N2a["In-memory sliding window\nPer IP address\n30 requests per 60 seconds\nOnly on /api/ai/ endpoints"]
-        end
-
-        subgraph FrontendProtection["Frontend Protections"]
-            F1["401 Interceptor"] --> F1a["api.js handleResponse\nOn 401: clear token, redirect to login\nPrevents infinite auth loops"]
-            F2["Route Guards"] --> F2a["ProtectedRoute: redirect to login\nGuestRoute: redirect to dashboard\nAdminRoute: check role, redirect to /"]
-            F3["Token Storage"] --> F3a["localStorage only\nNo httpOnly cookies\nXSS protection via React"]
-        end
+        AA1["Register\nbcrypt 12 rounds before DB insert"]
+        AA2["Login\nverify hash, issue HS256 JWT"]
+        AA3["JWT Token\nsub, role, exp, iat\nconfigurable expiry from JWT_EXPIRY_MINUTES"]
+        AA4["Protected Routes\nget_current_user Depends\n403 on invalid/missing token"]
+        AA5["Admin Routes\nget_current_admin Depends\nrole: admin or super_admin"]
+        AA6["Super Admin\nbody-level role check\nonly super_admin PATCHES roles"]
     end
 
-    subgraph Recommended["Production Hardening"]
-        R1["Use strong JWT_SECRET via env var"]
-        R2["Enable HTTPS via reverse proxy"]
-        R3["Short JWT expiry: 15-30 minutes with refresh tokens"]
-        R4["Redis-backed rate limiting shared across workers"]
-        R5["Connection pool limits: tune pool_size and max_overflow"]
-        R6["Add CSRF protection for cookie-based auth"]
-        R7["Security headers: CSP, HSTS, X-Frame-Options"]
+    subgraph DATA["Data Protection"]
+        direction TB
+        D1["SQLAlchemy ORM\nparameterized queries\nno SQL injection"]
+        D2["Foreign Keys\nCASCADE on owned resources\nSET NULL on optional references"]
+        D3["Race Condition\nunique constraint on email\n409 Conflict on duplicate"]
+    end
+
+    subgraph NETWORK["Network Protection"]
+        direction TB
+        N1["CORS Middleware\norigin whitelist from env"]
+        N2["Rate Limiting\nin-memory sliding window\n30 req/60s per IP on /api/ai/*"]
+    end
+
+    subgraph FRONTEND["Frontend Protections"]
+        direction TB
+        F1["401 Interceptor\nclear token, redirect to login"]
+        F2["Route Guards\nProtectedRoute, GuestRoute,\nAdminRoute"]
+        F3["Token Storage\nlocalStorage, no httpOnly\ncookies"]
+    end
+
+    subgraph HARDENING["Production Hardening"]
+        direction TB
+        H1["Strong JWT_SECRET via env"]
+        H2["HTTPS via reverse proxy"]
+        H3["Short JWT expiry + refresh tokens"]
+        H4["Redis-backed rate limiting"]
+        H5["Connection pool tuning"]
+        H6["CSRF protection"]
     end
 ```
 
 ## Testing
 
-### Backend Test Suite (60 tests)
+Test directories have been removed from the repository. To add tests:
 
-| File              | Tests | Scope                          |
-|-------------------|-------|--------------------------------|
-| `test_auth.py`    | 11    | Register, login, profile CRUD  |
-| `test_roadmaps.py`| 21    | List, get, CRUD, nodes, resources |
-| `test_progress.py`| 11    | Enroll, progress, dashboard    |
-| `test_admin.py`   | 8     | Stats, users, feedback         |
-
-Tests use a dedicated `pathforge_test` database (configurable via `TEST_DATABASE_URL` env var) with per-function schema reset.
+### Backend
 
 ```bash
 cd backend
-$env:TEST_DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/pathforge_test"
+# Install test dependencies
+pip install pytest pytest-asyncio httpx
 pytest -v
 ```
 
-### Frontend Test Suite (34 tests)
+Tests use a dedicated `pathforge_test` database (configurable via `TEST_DATABASE_URL` env var).
 
-| File                 | Tests | Scope                             |
-|----------------------|-------|-----------------------------------|
-| `api.test.js`        | 10    | API client (GET/POST/PATCH/DELETE, 401 redirect, 204 null) |
-| `authStore.test.js`  | 7     | Zustand store (login/logout/init/updateUser) |
-| `utils.test.js`      | 5     | `cn()` utility (merge, conflicts, edge cases) |
-| `Navbar.test.jsx`    | 5     | Auth-dependent rendering, admin link visibility |
-| `App.test.jsx`       | 7     | Route guards, guest redirects, admin access |
+### Frontend
 
 ```bash
 cd frontend
-npm test              # single run
-npm run test:watch    # watch mode
+npm install --save-dev vitest @testing-library/react @testing-library/jest-dom
+npm test
 ```
 
 ## Roadmap Data Sources
@@ -914,7 +885,6 @@ Responses are cached in `ai_explanations` table — subsequent requests return i
 | Priority | Feature                          | Description                                           |
 |----------|----------------------------------|-------------------------------------------------------|
 | P0       | E2E tests                        | Playwright tests for critical flows                   |
-| P1       | Social OAuth (Google, GitHub)    | Sign in with existing accounts                         |
 | P1       | AI streaming responses           | Stream explanations token-by-token via SSE             |
 | P2       | Resource library                 | Curated articles, videos, and courses per node         |
 | P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
