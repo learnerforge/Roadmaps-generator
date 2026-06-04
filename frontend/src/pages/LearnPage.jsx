@@ -1,7 +1,6 @@
 import { useReducer, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { apiGet, apiPatch } from '../lib/api'
-import { useAuthStore } from '../stores/authStore'
 import { STATUS_COLORS } from '../lib/constants'
 import AsyncContent from '../components/shared/AsyncContent'
 import AIExplanation from '../components/learn/AIExplanation'
@@ -44,7 +43,6 @@ function reducer(state, action) {
 
 export default function LearnPage() {
   const { slug } = useParams()
-  const { user } = useAuthStore()
   const [state, dispatch] = useReducer(reducer, initialState)
   const { roadmap, nodes, progress, selectedNode, loading, error } = state
 

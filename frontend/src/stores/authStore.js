@@ -6,16 +6,17 @@ export const useAuthStore = create((set) => ({
   token: localStorage.getItem('token'),
   isLoading: true,
 
-  init: async () => {
+  init: async (signal) => {
     const token = localStorage.getItem('token')
     if (!token) {
       set({ isLoading: false })
       return
     }
     try {
-      const user = await apiGet('/me')
+      const user = await apiGet('/me', { signal })
       set({ user, token, isLoading: false })
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return
       localStorage.removeItem('token')
       set({ user: null, token: null, isLoading: false })
     }

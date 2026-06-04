@@ -20,7 +20,9 @@ export default function App() {
   const { toasts, removeToast } = useToast()
 
   useEffect(() => {
-    init()
+    const abort = new AbortController()
+    init(abort.signal)
+    return () => abort.abort()
   }, [init])
 
   return (

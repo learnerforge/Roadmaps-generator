@@ -1,7 +1,7 @@
 export const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 const API_TIMEOUT = 15000
-const RETRY_DELAYS = [0, 1000, 3000]
+const RETRY_DELAYS = [1000, 3000]
 
 async function handleResponse(res) {
   if (res.status === 401) {
@@ -17,26 +17,31 @@ async function handleResponse(res) {
   return res.status === 204 ? null : res.json()
 }
 
-function combineSignals(...signals) {
-  const clean = signals.filter(Boolean)
-  if (clean.length === 0) return undefined
-  if (clean.length === 1) return clean[0]
-  return typeof AbortSignal.any === 'function'
-    ? AbortSignal.any(clean)
-    : clean[0]
+function buildFetchOptions(options) {
+  const timeoutSignal = AbortSignal.timeout(API_TIMEOUT)
+  const userSignal = options?.signal
+
+  if (!userSignal) {
+    return { ...options, signal: timeoutSignal }
+  }
+
+  if (typeof AbortSignal.any === 'function') {
+    return { ...options, signal: AbortSignal.any([userSignal, timeoutSignal]) }
+  }
+
+  return { ...options, signal: userSignal }
 }
 
 async function fetchWithRetry(url, options, retries = 2) {
-  const timeoutSignal = AbortSignal.timeout(API_TIMEOUT)
-  const signal = combineSignals(options?.signal, timeoutSignal)
+  const opts = buildFetchOptions(options)
 
-  for (let i = 0; i <= retries; i++) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, { ...options, signal })
+      const res = await fetch(url, opts)
       return res
     } catch (err) {
-      if (i === retries) throw err
-      await new Promise((r) => setTimeout(r, RETRY_DELAYS[i] || 1000))
+      if (attempt === retries) throw err
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
     }
   }
 }
@@ -84,6 +89,12 @@ export async function apiDownload(path, filename) {
   const res = await fetchWithRetry(`${API_BASE}${path}`, {
     headers: authHeaders(),
   })
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
+    window.location.href = `/login?redirect=${returnUrl}`
+    throw new Error('Session expired. Please log in again.')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Download failed' }))
     throw new Error(err.detail || 'Download failed')

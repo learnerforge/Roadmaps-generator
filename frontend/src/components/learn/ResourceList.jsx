@@ -6,12 +6,13 @@ export default function ResourceList({ nodeId }) {
   const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const loadResources = useCallback(async () => {
+  const loadResources = useCallback(async (signal) => {
     setLoading(true)
     try {
-      const data = await apiGet(`/roadmaps/nodes/${nodeId}`)
+      const data = await apiGet(`/roadmaps/nodes/${nodeId}`, { signal })
       setResources(data.resources || [])
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return
       setResources([])
     } finally {
       setLoading(false)
@@ -19,7 +20,9 @@ export default function ResourceList({ nodeId }) {
   }, [nodeId])
 
   useEffect(() => {
-    loadResources()
+    const abort = new AbortController()
+    loadResources(abort.signal)
+    return () => abort.abort()
   }, [loadResources])
 
   return (

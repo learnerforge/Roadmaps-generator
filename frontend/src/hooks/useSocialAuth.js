@@ -27,16 +27,19 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
         setError('OAuth state mismatch. Please try again.')
         return
       }
+      const abort = new AbortController()
       setSocialLoading('github')
-      apiPost('/auth/social', { provider: 'github', token: code })
+      apiPost('/auth/social', { provider: 'github', token: code }, { signal: abort.signal })
         .then((result) => {
           login(result.access_token, result.user)
           navigate(redirectPath, { replace: true })
         })
         .catch((err) => {
+          if (err.name === 'AbortError') return
           setError(err.message || 'GitHub login failed')
           setSocialLoading(null)
         })
+      return () => abort.abort()
     }
   }, [])
 
