@@ -19,7 +19,6 @@ id_dsa
 *.gpg
 .npmrc
 .netrc
-test.env
 
 # Dependencies
 node_modules/

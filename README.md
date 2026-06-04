@@ -827,28 +827,6 @@ flowchart TB
     end
 ```
 
-## Testing
-
-Test directories have been removed from the repository. To add tests:
-
-### Backend
-
-```bash
-cd backend
-# Install test dependencies
-pip install pytest pytest-asyncio httpx
-pytest -v
-```
-
-Tests use a dedicated `pathforge_test` database (configurable via `TEST_DATABASE_URL` env var).
-
-### Frontend
-
-```bash
-cd frontend
-npm install --save-dev vitest @testing-library/react @testing-library/jest-dom
-npm test
-```
 
 ## Roadmap Data Sources
 
@@ -884,7 +862,7 @@ Responses are cached in `ai_explanations` table — subsequent requests return i
 
 | Priority | Feature                          | Description                                           |
 |----------|----------------------------------|-------------------------------------------------------|
-| P0       | E2E tests                        | Playwright tests for critical flows                   |
+| P0       | E2E tests                        | End-to-end tests for critical flows                   |
 | P1       | AI streaming responses           | Stream explanations token-by-token via SSE             |
 | P2       | Resource library                 | Curated articles, videos, and courses per node         |
 | P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
