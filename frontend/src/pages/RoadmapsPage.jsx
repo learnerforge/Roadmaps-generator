@@ -1,12 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { apiGet } from '../lib/api'
-
-const CATEGORIES = [
-  'All', 'role-based', 'skill-based', 'absolute-beginners',
-  'web-development', 'frameworks', 'languages', 'ai-ml',
-  'devops', 'mobile', 'databases', 'cyber-security',
-]
+import { CATEGORIES, CATEGORY_COLORS } from '../lib/constants'
+import AsyncContent from '../components/shared/AsyncContent'
 
 export default function RoadmapsPage() {
   const [roadmaps, setRoadmaps] = useState([])
@@ -15,42 +11,34 @@ export default function RoadmapsPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
 
-  useEffect(() => {
-    loadRoadmaps()
-  }, [])
-
-  const loadRoadmaps = async () => {
+  const loadRoadmaps = useCallback(async (signal) => {
     try {
       setError(null)
-      const data = await apiGet('/roadmaps')
+      setLoading(true)
+      const data = await apiGet('/roadmaps', { signal })
       setRoadmaps(data)
     } catch (err) {
+      if (err.name === 'AbortError') return
       console.error('Failed to load roadmaps:', err)
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const filtered = roadmaps.filter((rm) => {
-    const matchSearch = !search || rm.title.toLowerCase().includes(search.toLowerCase())
-    const matchCategory = category === 'All' || rm.category === category
-    return matchSearch && matchCategory
-  })
+  useEffect(() => {
+    const abort = new AbortController()
+    loadRoadmaps(abort.signal)
+    return () => abort.abort()
+  }, [loadRoadmaps])
 
-  const categoryColors = {
-    'role-based': 'bg-accent-glow text-accent border-accent/20',
-    'skill-based': 'bg-green-dim text-green border-green/20',
-    'absolute-beginners': 'bg-amber-dim text-amber border-amber/20',
-    'web-development': 'bg-blue-dim text-blue border-blue/20',
-    'frameworks': 'bg-purple-dim text-purple-400 border-purple-400/20',
-    'languages': 'bg-cyan-dim text-cyan-400 border-cyan-400/20',
-    'ai-ml': 'bg-rose-dim text-rose-400 border-rose-400/20',
-    'devops': 'bg-orange-dim text-orange-400 border-orange-400/20',
-    'mobile': 'bg-teal-dim text-teal-400 border-teal-400/20',
-    'databases': 'bg-indigo-dim text-indigo-400 border-indigo-400/20',
-    'cyber-security': 'bg-red-dim text-red border-red/20',
-  }
+  const filtered = useMemo(() => {
+    return roadmaps.filter((rm) => {
+      const matchSearch = !search || rm.title.toLowerCase().includes(search.toLowerCase())
+      const matchCategory = category === 'All' || rm.category === category
+      return matchSearch && matchCategory
+    })
+  }, [roadmaps, search, category])
 
   return (
     <div className="min-h-screen">
@@ -60,7 +48,6 @@ export default function RoadmapsPage() {
           <p className="text-text-2">Choose a path and start learning with AI guidance.</p>
         </div>
 
-        {/* Search & Filters */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center">
           <input
             type="text"
@@ -70,7 +57,7 @@ export default function RoadmapsPage() {
             className="flex-1 rounded-lg border border-border bg-bg-2 px-4 py-2.5 text-sm text-text placeholder:text-text-3 focus:border-accent focus:outline-none"
           />
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.slice(0, 6).map((cat) => (
+            {CATEGORIES.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
@@ -80,32 +67,19 @@ export default function RoadmapsPage() {
                     : 'border-border bg-bg-2 text-text-3 hover:border-border-2'
                 }`}
               >
-                {cat.replace('-', ' ')}
+                {cat === 'absolute-beginners' ? 'beginners' : cat.replace('-', ' ')}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Roadmap Grid */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          </div>
-        ) : error ? (
-          <div className="py-20 text-center">
-            <p className="mb-2 text-red">{error}</p>
-            <button
-              onClick={() => { setLoading(true); setError(null); loadRoadmaps() }}
-              className="text-sm text-accent hover:underline"
-            >
-              Try again
-            </button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-20 text-center text-text-3">
-            No roadmaps found. The database may need seeding.
-          </div>
-        ) : (
+        <AsyncContent
+          loading={loading}
+          error={error}
+          onRetry={() => { const a = new AbortController(); loadRoadmaps(a.signal) }}
+          isEmpty={!loading && !error && filtered.length === 0}
+          emptyMessage="No roadmaps found. The database may need seeding."
+        >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((rm) => (
               <Link
@@ -116,7 +90,7 @@ export default function RoadmapsPage() {
                 <div className="mb-3 flex items-center justify-between">
                   <span
                     className={`rounded-md border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${
-                      categoryColors[rm.category] || 'border-border bg-bg-3 text-text-3'
+                      CATEGORY_COLORS[rm.category]?.tw || 'border-border bg-bg-3 text-text-3'
                     }`}
                   >
                     {rm.category}
@@ -138,7 +112,7 @@ export default function RoadmapsPage() {
               </Link>
             ))}
           </div>
-        )}
+        </AsyncContent>
       </div>
     </div>
   )

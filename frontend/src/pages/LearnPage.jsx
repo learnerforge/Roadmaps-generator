@@ -1,151 +1,116 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { apiGet, apiPost, apiPatch } from '../lib/api'
+import { useReducer, useEffect, useCallback, useMemo } from 'react'
+import { useParams } from 'react-router-dom'
+import { apiGet, apiPatch } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
+import { STATUS_COLORS } from '../lib/constants'
+import AsyncContent from '../components/shared/AsyncContent'
+import AIExplanation from '../components/learn/AIExplanation'
+import ResourceList from '../components/learn/ResourceList'
 
-const STATUS_COLORS = {
-  pending: 'border-border bg-bg-2 text-text-2',
-  in_progress: 'border-blue bg-blue-dim text-blue',
-  done: 'border-green bg-green-dim text-green',
-  skipped: 'border-text-3 bg-bg-3 text-text-3',
-  bookmarked: 'border-amber bg-amber-dim text-amber',
+const STATUS_OPTIONS = ['pending', 'in_progress', 'done', 'skipped']
+
+const initialState = {
+  roadmap: null,
+  nodes: [],
+  progress: {},
+  selectedNode: null,
+  loading: true,
+  error: null,
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'FETCH_START':
+      return { ...state, loading: true, error: null }
+    case 'FETCH_SUCCESS':
+      return {
+        ...state,
+        loading: false,
+        roadmap: action.roadmap,
+        nodes: action.nodes,
+        progress: action.progress,
+        selectedNode: action.nodes.length > 0 ? action.nodes[0] : null,
+      }
+    case 'FETCH_ERROR':
+      return { ...state, loading: false, error: action.error }
+    case 'SET_PROGRESS':
+      return { ...state, progress: { ...state.progress, [action.nodeId]: action.status } }
+    case 'SELECT_NODE':
+      return { ...state, selectedNode: action.node }
+    default:
+      return state
+  }
 }
 
 export default function LearnPage() {
   const { slug } = useParams()
   const { user } = useAuthStore()
-  const [roadmap, setRoadmap] = useState(null)
-  const [nodes, setNodes] = useState([])
-  const [progress, setProgress] = useState({})
-  const [selectedNode, setSelectedNode] = useState(null)
-  const [aiExplanation, setAiExplanation] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [resources, setResources] = useState([])
-  const [resourcesLoading, setResourcesLoading] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [updateError, setUpdateError] = useState(null)
+  const [state, dispatch] = useReducer(reducer, initialState)
+  const { roadmap, nodes, progress, selectedNode, loading, error } = state
 
-  useEffect(() => {
-    loadData()
-  }, [slug])
-
-  const loadData = async () => {
+  const loadData = useCallback(async (signal) => {
     try {
-      setError(null)
+      dispatch({ type: 'FETCH_START' })
       const [roadmapData, progressData] = await Promise.all([
-        apiGet(`/roadmaps/${slug}`),
-        apiGet(`/progress/${slug}/progress`).catch(() => ({ progress: [] })),
+        apiGet(`/roadmaps/${slug}`, { signal }),
+        apiGet(`/progress/${slug}/progress`, { signal }).catch(() => ({ progress: [] })),
       ])
-      setRoadmap(roadmapData.roadmap)
-      setNodes(roadmapData.nodes || [])
-
       const progMap = {}
       for (const p of progressData.progress || []) {
         progMap[p.node_id] = p.status
       }
-      setProgress(progMap)
+      dispatch({
+        type: 'FETCH_SUCCESS',
+        roadmap: roadmapData.roadmap,
+        nodes: roadmapData.nodes || [],
+        progress: progMap,
+      })
     } catch (err) {
+      if (err.name === 'AbortError') return
       console.error('Failed to load:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
+      dispatch({ type: 'FETCH_ERROR', error: err.message })
     }
-  }
+  }, [slug])
 
-  const handleStatusChange = async (nodeId, status) => {
-    setUpdateError(null)
+  useEffect(() => {
+    const abort = new AbortController()
+    loadData(abort.signal)
+    return () => abort.abort()
+  }, [loadData])
+
+  const handleStatusChange = useCallback(async (nodeId, status) => {
     try {
       await apiPatch(`/progress/node/${nodeId}`, { status })
-      setProgress((prev) => ({ ...prev, [nodeId]: status }))
+      dispatch({ type: 'SET_PROGRESS', nodeId, status })
     } catch (err) {
       console.error('Failed to update:', err)
-      setUpdateError('Failed to update status. Please try again.')
     }
-  }
+  }, [])
 
-  const loadResources = async (nodeId) => {
-    setResourcesLoading(true)
-    try {
-      const data = await apiGet(`/roadmaps/nodes/${nodeId}/resources`)
-      setResources(data || [])
-    } catch {
-      setResources([])
-    } finally {
-      setResourcesLoading(false)
+  const handleNodeSelect = useCallback((node) => {
+    dispatch({ type: 'SELECT_NODE', node })
+  }, [])
+
+  const { doneCount, pct } = useMemo(() => {
+    const done = Object.values(progress).filter((s) => s === 'done').length
+    return {
+      doneCount: done,
+      pct: nodes.length > 0 ? Math.round((done / nodes.length) * 100) : 0,
     }
-  }
-
-  const handleNodeSelect = (node) => {
-    setSelectedNode(node)
-    setAiExplanation('')
-    loadResources(node.id)
-  }
-
-  const handleExplain = async (nodeId) => {
-    setAiLoading(true)
-    setAiExplanation('')
-    try {
-      const result = await apiPost('/ai/explain-node', { node_id: nodeId })
-      setAiExplanation(result.explanation)
-    } catch (err) {
-      setAiExplanation('Failed to generate explanation. Please try again.')
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      </div>
-    )
-  }
-
-  if (error && !roadmap) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <p className="mb-2 text-red">{error}</p>
-          <button
-            onClick={() => { setLoading(true); setError(null); loadData() }}
-            className="text-sm text-accent hover:underline"
-          >
-            Try again
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!roadmap) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <p className="text-text-3">Roadmap not found.</p>
-        </div>
-      </div>
-    )
-  }
-
-  const doneCount = Object.values(progress).filter((s) => s === 'done').length
-  const totalNodes = nodes.length
-  const pct = totalNodes > 0 ? Math.round((doneCount / totalNodes) * 100) : 0
+  }, [progress, nodes])
 
   return (
     <div className="min-h-screen flex">
-      {/* Sidebar - Node List */}
       <aside className="hidden lg:block w-72 border-r border-border bg-bg-2 overflow-y-auto h-[calc(100vh-4rem)] sticky top-16">
         <div className="p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-white mb-2">{roadmap.title}</h2>
+          <h2 className="text-sm font-semibold text-white mb-2">{roadmap?.title}</h2>
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 bg-bg-3 rounded-full overflow-hidden">
               <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} />
             </div>
             <span className="text-[10px] font-mono text-text-3">{pct}%</span>
           </div>
-          <p className="mt-1 text-[10px] text-text-3">{doneCount}/{totalNodes} completed</p>
+          <p className="mt-1 text-[10px] text-text-3">{doneCount}/{nodes.length} completed</p>
         </div>
         <div className="p-2">
           {nodes.map((node, i) => {
@@ -163,7 +128,7 @@ export default function LearnPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-text-3 w-5">{i + 1}</span>
                   <span className="flex-1 truncate">{node.title}</span>
-                  {status === 'done' && <span className="text-green">✓</span>}
+                  {status === 'done' && <span className="text-green">done</span>}
                 </div>
               </button>
             )
@@ -171,126 +136,68 @@ export default function LearnPage() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 min-w-0 p-6 lg:p-10">
-        {selectedNode ? (
-          <div className="max-w-3xl">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-bold text-white">{selectedNode.title}</h1>
-                {selectedNode.category && (
-                  <span className="text-xs text-text-3">{selectedNode.category}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {['pending', 'in_progress', 'done', 'skipped'].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => handleStatusChange(selectedNode.id, s)}
-                    className={`rounded-lg border px-2.5 py-1 text-[10px] font-medium transition-colors ${
-                      progress[selectedNode.id] === s
-                        ? STATUS_COLORS[s]
-                        : 'border-border bg-bg-2 text-text-3 hover:border-border-2'
-                    }`}
-                  >
-                    {s.replace('_', ' ')}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {updateError && (
-              <p className="mt-2 text-xs text-red">{updateError}</p>
-            )}
-
-            {selectedNode.description && (
-              <div className="mb-6 rounded-xl border border-border bg-bg-2 p-5">
-                <p className="text-sm text-text-2 leading-relaxed">{selectedNode.description}</p>
-              </div>
-            )}
-
-            {selectedNode.why_important && (
-              <div className="mb-6 rounded-xl border border-accent/20 bg-accent-glow p-5">
-                <h3 className="mb-2 text-xs font-semibold text-accent uppercase tracking-wider">Why it matters</h3>
-                <p className="text-sm text-text-2">{selectedNode.why_important}</p>
-              </div>
-            )}
-
-            {/* AI Explanation */}
-            <div className="mb-6 rounded-xl border border-border bg-bg-2 p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-accent uppercase tracking-wider">AI Explanation</h3>
-                <button
-                  onClick={() => handleExplain(selectedNode.id)}
-                  disabled={aiLoading}
-                  className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent-2 transition-colors disabled:opacity-50"
-                >
-                  {aiLoading ? 'Generating...' : 'Explain with AI'}
-                </button>
-              </div>
-              {aiLoading && (
-                <div className="flex items-center gap-3 py-4">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                  <span className="text-xs text-text-3">AI is thinking...</span>
+        <AsyncContent
+          loading={loading}
+          error={error && !roadmap ? error : null}
+          onRetry={() => { const a = new AbortController(); loadData(a.signal) }}
+          isEmpty={!loading && !error && !roadmap}
+          emptyMessage="Roadmap not found."
+        >
+          {selectedNode ? (
+            <div className="max-w-3xl">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-bold text-white">{selectedNode.title}</h1>
+                  {selectedNode.category && (
+                    <span className="text-xs text-text-3">{selectedNode.category}</span>
+                  )}
                 </div>
-              )}
-              {aiExplanation && !aiLoading && (
-                <div className="prose prose-invert prose-sm max-w-none text-sm text-text-2 leading-relaxed whitespace-pre-wrap">
-                  {aiExplanation}
-                </div>
-              )}
-              {!aiExplanation && !aiLoading && (
-                <p className="text-xs text-text-3">Click "Explain with AI" to get a beginner-friendly explanation of this topic.</p>
-              )}
-            </div>
-
-            {/* Resources */}
-            <div className="rounded-xl border border-border bg-bg-2 p-5">
-              <h3 className="mb-3 text-xs font-semibold text-accent uppercase tracking-wider">Resources</h3>
-              {resourcesLoading ? (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                  <span className="text-xs text-text-3">Loading resources...</span>
-                </div>
-              ) : resources.length === 0 ? (
-                <p className="text-xs text-text-3">No resources available for this topic yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {resources.map((r) => (
-                    <a
-                      key={r.id}
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 rounded-lg border border-border p-3 hover:border-accent/50 transition-colors group"
+                <div className="flex items-center gap-2">
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleStatusChange(selectedNode.id, s)}
+                      className={`rounded-lg border px-2.5 py-1 text-[10px] font-medium transition-colors ${
+                        progress[selectedNode.id] === s
+                          ? STATUS_COLORS[s]
+                          : 'border-border bg-bg-2 text-text-3 hover:border-border-2'
+                      }`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white group-hover:text-accent transition-colors truncate">
-                          {r.title}
-                        </p>
-                        <p className="text-[10px] text-text-3 mt-0.5">
-                          {r.type}{r.is_free ? ' • Free' : ''}{r.is_recommended ? ' • Recommended' : ''}
-                        </p>
-                      </div>
-                      <svg className="h-4 w-4 shrink-0 text-text-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
+                      {s.replace('_', ' ')}
+                    </button>
                   ))}
                 </div>
+              </div>
+
+              {selectedNode.description && (
+                <div className="mb-6 rounded-xl border border-border bg-bg-2 p-5">
+                  <p className="text-sm text-text-2 leading-relaxed">{selectedNode.description}</p>
+                </div>
               )}
+
+              {selectedNode.why_important && (
+                <div className="mb-6 rounded-xl border border-accent/20 bg-accent-glow p-5">
+                  <h3 className="mb-2 text-xs font-semibold text-accent uppercase tracking-wider">Why it matters</h3>
+                  <p className="text-sm text-text-2">{selectedNode.why_important}</p>
+                </div>
+              )}
+
+              <AIExplanation nodeId={selectedNode.id} />
+              <ResourceList nodeId={selectedNode.id} />
             </div>
-          </div>
-        ) : (
-          <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-            <div className="mb-4 h-16 w-16 rounded-2xl bg-accent-glow flex items-center justify-center">
-              <span className="text-2xl">PF</span>
+          ) : (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
+              <div className="mb-4 h-16 w-16 rounded-2xl bg-accent-glow flex items-center justify-center">
+                <span className="text-2xl text-text-2">PF</span>
+              </div>
+              <h2 className="mb-2 text-lg font-semibold text-white">Select a topic</h2>
+              <p className="text-sm text-text-2 max-w-md">
+                Click any topic from the sidebar to start learning. Track your progress and get AI explanations.
+              </p>
             </div>
-            <h2 className="mb-2 text-lg font-semibold text-white">Select a topic</h2>
-            <p className="text-sm text-text-2 max-w-md">
-              Click any topic from the sidebar to start learning. Track your progress and get AI explanations.
-            </p>
-          </div>
-        )}
+          )}
+        </AsyncContent>
       </main>
     </div>
   )

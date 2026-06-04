@@ -1,20 +1,7 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, memo } from 'react'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, Handle, Position } from 'reactflow'
 import 'reactflow/dist/style.css'
-
-const CATEGORY_COLORS = {
-  'role-based': { border: '#7c6af7', bg: 'rgba(124,106,247,0.08)', badge: '#7c6af7' },
-  'skill-based': { border: '#4ade80', bg: 'rgba(74,222,128,0.08)', badge: '#4ade80' },
-  'absolute-beginners': { border: '#fbbf24', bg: 'rgba(251,191,36,0.08)', badge: '#fbbf24' },
-  'web-development': { border: '#60a5fa', bg: 'rgba(96,165,250,0.08)', badge: '#60a5fa' },
-  'frameworks': { border: '#a78bfa', bg: 'rgba(167,139,250,0.08)', badge: '#a78bfa' },
-  'languages': { border: '#22d3ee', bg: 'rgba(34,211,238,0.08)', badge: '#22d3ee' },
-  'ai-ml': { border: '#fb7185', bg: 'rgba(251,113,133,0.08)', badge: '#fb7185' },
-  'devops': { border: '#fb923c', bg: 'rgba(251,146,60,0.08)', badge: '#fb923c' },
-  'mobile': { border: '#2dd4bf', bg: 'rgba(45,212,191,0.08)', badge: '#2dd4bf' },
-  'databases': { border: '#818cf8', bg: 'rgba(129,140,248,0.08)', badge: '#818cf8' },
-  'cyber-security': { border: '#f87171', bg: 'rgba(248,113,113,0.08)', badge: '#f87171' },
-}
+import { CATEGORY_COLORS } from '../../lib/constants'
 
 function GraphNode({ data }) {
   const colors = CATEGORY_COLORS[data.roadmapCategory] || { border: '#5a5a72', bg: 'rgba(90,90,114,0.08)', badge: '#5a5a72' }
@@ -43,9 +30,11 @@ function GraphNode({ data }) {
   )
 }
 
+const GraphNodeMemo = memo(GraphNode)
+
 const defaultViewport = { x: 0, y: 0, zoom: 0.6 }
 
-export default function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, category }) {
+export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, category }) {
   const initialNodes = useMemo(() => {
     const posXValues = rawNodes.map(n => n.position_x)
     const posYValues = rawNodes.map(n => n.position_y)
@@ -81,7 +70,7 @@ export default function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, categor
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
-  const nodeTypes = useMemo(() => ({ graphNode: GraphNode }), [])
+  const nodeTypes = useMemo(() => ({ graphNode: GraphNodeMemo }), [])
 
   const onNodeClick = useCallback((_, node) => {
     setNodes((nds) =>
@@ -140,4 +129,4 @@ export default function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, categor
       </ReactFlow>
     </div>
   )
-}
+})

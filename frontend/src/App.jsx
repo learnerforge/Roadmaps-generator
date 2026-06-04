@@ -1,8 +1,10 @@
 import { lazy, useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
+import { ProtectedRoute, GuestRoute, AdminRoute } from './components/shared/GuardRoute'
 import Navbar from './components/layout/Navbar'
-import LoadingSkeleton from './components/shared/LoadingSkeleton'
+import ToastContainer from './components/shared/Toast'
+import useToast from './hooks/useToast'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
 const RoadmapsPage = lazy(() => import('./pages/RoadmapsPage'))
@@ -13,29 +15,9 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 
-function ProtectedRoute({ children }) {
-  const { user, isLoading } = useAuthStore()
-  if (isLoading) return <LoadingSkeleton />
-  if (!user) return <Navigate to="/login" replace />
-  return children
-}
-
-function GuestRoute({ children }) {
-  const { user, isLoading } = useAuthStore()
-  if (isLoading) return <LoadingSkeleton />
-  if (user) return <Navigate to="/dashboard" replace />
-  return children
-}
-
-function AdminRoute({ children }) {
-  const { user, isLoading } = useAuthStore()
-  if (isLoading) return <LoadingSkeleton />
-  if (!user || !['admin', 'super_admin'].includes(user.role)) return <Navigate to="/" replace />
-  return children
-}
-
 export default function App() {
   const init = useAuthStore((s) => s.init)
+  const { toasts, removeToast } = useToast()
 
   useEffect(() => {
     init()
@@ -50,31 +32,11 @@ export default function App() {
         <Route path="/roadmaps/:slug" element={<RoadmapDetailPage />} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/roadmap/:slug/learn"
-          element={
-            <ProtectedRoute>
-              <LearnPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/*"
-          element={
-            <AdminRoute>
-              <AdminPage />
-            </AdminRoute>
-          }
-        />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/roadmaps/:slug/learn" element={<ProtectedRoute><LearnPage /></ProtectedRoute>} />
+        <Route path="/admin/*" element={<AdminRoute><AdminPage /></AdminRoute>} />
       </Routes>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   )
 }

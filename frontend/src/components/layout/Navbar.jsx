@@ -1,11 +1,25 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
+
+const NAV_LINKS = [
+  { to: '/roadmaps', label: 'Roadmaps', requiresAuth: false },
+  { to: '/dashboard', label: 'Dashboard', requiresAuth: true },
+  { to: '/admin', label: 'Admin', requiresAuth: true, adminOnly: true },
+]
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  const visibleLinks = useMemo(() => {
+    return NAV_LINKS.filter((link) => {
+      if (link.adminOnly && !(user?.role === 'admin' || user?.role === 'super_admin')) return false
+      if (link.requiresAuth && !user) return false
+      return true
+    })
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -28,29 +42,21 @@ export default function Navbar() {
         </Link>
 
         <div className="hidden sm:flex items-center gap-6">
-          <Link to="/roadmaps" className="text-sm text-text-2 hover:text-text transition-colors">
-            Roadmaps
-          </Link>
+          {visibleLinks.map((link) => (
+            <Link key={link.to} to={link.to} className="text-sm text-text-2 hover:text-text transition-colors">
+              {link.label}
+            </Link>
+          ))}
           {user ? (
-            <>
-              <Link to="/dashboard" className="text-sm text-text-2 hover:text-text transition-colors">
-                Dashboard
-              </Link>
-              {user.role === 'admin' || user.role === 'super_admin' ? (
-                <Link to="/admin" className="text-sm text-text-2 hover:text-text transition-colors">
-                  Admin
-                </Link>
-              ) : null}
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-text-3">{user.full_name}</span>
-                <button
-                  onClick={handleLogout}
-                  className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-2 hover:border-red hover:text-red transition-colors"
-                >
-                  Logout
-                </button>
-              </div>
-            </>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-text-3">{user.full_name}</span>
+              <button
+                onClick={handleLogout}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-2 hover:border-red hover:text-red transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-3">
               <Link
@@ -82,41 +88,26 @@ export default function Navbar() {
 
       {mobileOpen && (
         <div className="sm:hidden border-t border-border bg-bg px-4 py-4 space-y-3">
-          <Link
-            to="/roadmaps"
-            onClick={closeMobile}
-            className="block text-sm text-text-2 hover:text-text transition-colors"
-          >
-            Roadmaps
-          </Link>
+          {visibleLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              onClick={closeMobile}
+              className="block text-sm text-text-2 hover:text-text transition-colors"
+            >
+              {link.label}
+            </Link>
+          ))}
           {user ? (
-            <>
-              <Link
-                to="/dashboard"
-                onClick={closeMobile}
-                className="block text-sm text-text-2 hover:text-text transition-colors"
+            <div className="pt-2 border-t border-border">
+              <span className="block text-sm text-text-3 mb-2">{user.full_name}</span>
+              <button
+                onClick={handleLogout}
+                className="w-full rounded-lg border border-red px-3 py-1.5 text-xs text-red transition-colors"
               >
-                Dashboard
-              </Link>
-              {user.role === 'admin' || user.role === 'super_admin' ? (
-                <Link
-                  to="/admin"
-                  onClick={closeMobile}
-                  className="block text-sm text-text-2 hover:text-text transition-colors"
-                >
-                  Admin
-                </Link>
-              ) : null}
-              <div className="pt-2 border-t border-border">
-                <span className="block text-sm text-text-3 mb-2">{user.full_name}</span>
-                <button
-                  onClick={handleLogout}
-                  className="w-full rounded-lg border border-red px-3 py-1.5 text-xs text-red transition-colors"
-                >
-                  Logout
-                </button>
-              </div>
-            </>
+                Logout
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col gap-2 pt-2 border-t border-border">
               <Link

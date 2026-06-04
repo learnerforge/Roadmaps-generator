@@ -1,5 +1,8 @@
 export const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
+const API_TIMEOUT = 15000
+const RETRY_DELAYS = [0, 1000, 3000]
+
 async function handleResponse(res) {
   if (res.status === 401) {
     localStorage.removeItem('token')
@@ -14,14 +17,26 @@ async function handleResponse(res) {
   return res.status === 204 ? null : res.json()
 }
 
+function combineSignals(...signals) {
+  const clean = signals.filter(Boolean)
+  if (clean.length === 0) return undefined
+  if (clean.length === 1) return clean[0]
+  return typeof AbortSignal.any === 'function'
+    ? AbortSignal.any(clean)
+    : clean[0]
+}
+
 async function fetchWithRetry(url, options, retries = 2) {
+  const timeoutSignal = AbortSignal.timeout(API_TIMEOUT)
+  const signal = combineSignals(options?.signal, timeoutSignal)
+
   for (let i = 0; i <= retries; i++) {
     try {
-      const res = await fetch(url, options)
+      const res = await fetch(url, { ...options, signal })
       return res
     } catch (err) {
       if (i === retries) throw err
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[i] || 1000))
     }
   }
 }
@@ -31,14 +46,15 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export async function apiGet(path) {
+export async function apiGet(path, { signal } = {}) {
   const res = await fetchWithRetry(`${API_BASE}${path}`, {
     headers: authHeaders(),
+    signal,
   })
   return handleResponse(res)
 }
 
-export async function apiPost(path, body) {
+export async function apiPost(path, body, { signal } = {}) {
   const res = await fetchWithRetry(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
@@ -46,11 +62,12 @@ export async function apiPost(path, body) {
       ...authHeaders(),
     },
     body: JSON.stringify(body),
+    signal,
   })
   return handleResponse(res)
 }
 
-export async function apiPatch(path, body) {
+export async function apiPatch(path, body, { signal } = {}) {
   const res = await fetchWithRetry(`${API_BASE}${path}`, {
     method: 'PATCH',
     headers: {
@@ -58,14 +75,7 @@ export async function apiPatch(path, body) {
       ...authHeaders(),
     },
     body: body ? JSON.stringify(body) : undefined,
-  })
-  return handleResponse(res)
-}
-
-export async function apiDelete(path) {
-  const res = await fetchWithRetry(`${API_BASE}${path}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
+    signal,
   })
   return handleResponse(res)
 }
