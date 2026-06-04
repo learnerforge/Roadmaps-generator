@@ -72,7 +72,7 @@ export default function AdminPage() {
                 { label: 'Total Nodes', value: stats.total_nodes },
                 { label: 'Open Feedback', value: stats.open_feedback },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl border border-border bg-bg-2 p-5">
+                <div key={item.label} className="card-glow p-5">
                   <p className="text-[10px] text-text-3 uppercase tracking-wider">{item.label}</p>
                   <p className="mt-2 text-2xl font-bold text-white">{item.value}</p>
                 </div>

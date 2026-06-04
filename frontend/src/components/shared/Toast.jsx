@@ -1,7 +1,7 @@
 const typeStyles = {
-  error: 'border-red/20 bg-red-dim text-red',
-  success: 'border-green/20 bg-green-dim text-green',
-  info: 'border-accent/20 bg-accent-glow text-accent',
+  error: 'border-red/20 text-red',
+  success: 'border-green/20 text-green',
+  info: 'border-accent/20 text-accent',
 }
 
 export default function ToastContainer({ toasts, onRemove }) {
@@ -12,12 +12,13 @@ export default function ToastContainer({ toasts, onRemove }) {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg transition-all animate-in slide-in-from-right ${typeStyles[t.type] || typeStyles.error}`}
+          className={`toast-glass toast-enter flex items-center gap-3 rounded-xl px-4 py-3 text-sm shadow-lg transition-all ${typeStyles[t.type] || typeStyles.error}`}
         >
           <span className="flex-1">{t.message}</span>
           <button
             onClick={() => onRemove(t.id)}
-            className="opacity-60 hover:opacity-100 text-xs"
+            className="opacity-50 hover:opacity-100 text-xs transition-opacity"
+            aria-label="Dismiss notification"
           >
             x
           </button>

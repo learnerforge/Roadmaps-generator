@@ -52,7 +52,7 @@ export default function Navbar() {
               <span className="text-sm text-text-3">{user.full_name}</span>
               <button
                 onClick={handleLogout}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-2 hover:border-red hover:text-red transition-colors"
+                className="btn-danger !px-3 !py-1.5 !text-xs"
               >
                 Logout
               </button>
@@ -79,6 +79,7 @@ export default function Navbar() {
           onClick={() => setMobileOpen(!mobileOpen)}
           className="sm:hidden flex flex-col gap-1.5 p-2"
           aria-label="Toggle menu"
+          aria-expanded={mobileOpen}
         >
           <span className={`block h-0.5 w-5 bg-text transition-transform ${mobileOpen ? 'translate-y-2 rotate-45' : ''}`} />
           <span className={`block h-0.5 w-5 bg-text transition-opacity ${mobileOpen ? 'opacity-0' : ''}`} />
@@ -103,7 +104,7 @@ export default function Navbar() {
               <span className="block text-sm text-text-3 mb-2">{user.full_name}</span>
               <button
                 onClick={handleLogout}
-                className="w-full rounded-lg border border-red px-3 py-1.5 text-xs text-red transition-colors"
+                className="btn-danger w-full !px-3 !py-1.5 !text-xs"
               >
                 Logout
               </button>

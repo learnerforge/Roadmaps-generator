@@ -46,7 +46,7 @@ export default function RegisterPage() {
           <button
             onClick={() => handleSocialLogin('google')}
             disabled={socialLoading !== null}
-            className="w-full flex items-center justify-center gap-3 rounded-lg border border-border bg-bg-2 px-4 py-2.5 text-sm text-text hover:border-accent/50 transition-colors disabled:opacity-50"
+            className="btn-ghost w-full flex items-center justify-center gap-3 !px-4 !py-2.5 !text-sm !text-text disabled:opacity-50"
           >
             <GoogleIcon />
             {socialLoading === 'google' ? 'Connecting...' : 'Sign up with Google'}
@@ -54,7 +54,7 @@ export default function RegisterPage() {
           <button
             onClick={() => handleSocialLogin('github')}
             disabled={socialLoading !== null}
-            className="w-full flex items-center justify-center gap-3 rounded-lg border border-border bg-bg-2 px-4 py-2.5 text-sm text-text hover:border-accent/50 transition-colors disabled:opacity-50"
+            className="btn-ghost w-full flex items-center justify-center gap-3 !px-4 !py-2.5 !text-sm !text-text disabled:opacity-50"
           >
             <GitHubIcon />
             {socialLoading === 'github' ? 'Connecting...' : 'Sign up with GitHub'}
@@ -68,37 +68,43 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-lg border border-red/20 bg-red-dim p-3 text-xs text-red">
+            <div className="rounded-lg border border-red/20 bg-red-dim p-3 text-xs text-red" role="alert">
               {error}
             </div>
           )}
           <div>
-            <label className="mb-1 block text-xs text-text-3">Full Name</label>
+            <label htmlFor="reg-name" className="mb-1 block text-xs text-text-3">Full Name</label>
             <input
+              id="reg-name"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className="w-full rounded-lg border border-border bg-bg-2 px-4 py-2.5 text-sm text-text focus:border-accent focus:outline-none"
+              autoComplete="name"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-text-3">Email</label>
+            <label htmlFor="reg-email" className="mb-1 block text-xs text-text-3">Email</label>
             <input
+              id="reg-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-border bg-bg-2 px-4 py-2.5 text-sm text-text focus:border-accent focus:outline-none"
+              autoComplete="email"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-text-3">Password</label>
+            <label htmlFor="reg-password" className="mb-1 block text-xs text-text-3">Password</label>
             <input
+              id="reg-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-border bg-bg-2 px-4 py-2.5 text-sm text-text focus:border-accent focus:outline-none"
+              autoComplete="new-password"
               required
               minLength={6}
             />
@@ -106,7 +112,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 transition-colors disabled:opacity-50"
+            className="btn-primary w-full disabled:opacity-50"
           >
             {loading ? 'Creating account...' : 'Create Account'}
           </button>

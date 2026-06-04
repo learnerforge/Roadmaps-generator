@@ -15,6 +15,7 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 - **Interactive Node Graph** — React Flow graph visualisation with zoom/pan, minimap, and click-to-highlight connections
 - **User Auth** — Email/password + Google/GitHub OAuth with JWT + bcrypt, race-condition safe
 - **Admin Dashboard** — Platform stats, user management, feedback moderation
+- **Community-Driven UI** — Button, card, toast, and spinner styles inspired by [uiverse.io](https://uiverse.io) community designs, with animated hover effects and glassmorphism
 
 ## Tech Stack
 

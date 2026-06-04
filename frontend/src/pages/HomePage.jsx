@@ -55,7 +55,7 @@ export default function HomePage() {
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              className="rounded-xl border border-border bg-bg-2 p-6 hover:border-accent/50 transition-colors"
+              className="card-glow p-6"
             >
               <h3 className="mb-2 text-sm font-semibold text-white">{f.title}</h3>
               <p className="text-sm text-text-2 leading-relaxed">{f.desc}</p>

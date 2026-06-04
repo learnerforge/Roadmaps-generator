@@ -94,7 +94,7 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
   }, [setNodes, setEdges])
 
   return (
-    <div className="h-[600px] w-full rounded-xl border border-border bg-bg" style={{ height: '75vh' }}>
+    <div className="w-full rounded-xl border border-border bg-bg" style={{ height: '75vh' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

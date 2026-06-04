@@ -56,10 +56,20 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
         return
       }
       if (provider === 'google') {
+        if (typeof google === 'undefined' || !google.accounts?.oauth2) {
+          setError('Google sign-in is not available. Try email or GitHub instead.')
+          setSocialLoading(null)
+          return
+        }
         const client = google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'openid email profile',
           callback: async (response) => {
+            if (response.error) {
+              setError(response.error_description || 'Google login failed')
+              setSocialLoading(null)
+              return
+            }
             if (response.access_token) {
               try {
                 const result = await apiPost('/auth/social', { provider: 'google', token: response.access_token })
@@ -71,18 +81,22 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
               }
             }
           },
+          error_callback: () => {
+            setError('Google sign-in popup was blocked or closed. Please try again.')
+            setSocialLoading(null)
+          },
         })
         client.requestAccessToken()
+        return
       } else {
         const state = generateState()
         sessionStorage.setItem('oauth_state', state)
-        const redirectUri = `${window.location.origin}${window.location.pathname}`
+        const redirectUri = `${window.location.origin}${window.location.pathname.replace(/[?#].*$/, '')}`
         const githubUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}&scope=read:user,user:email`
         window.location.href = githubUrl
       }
     } catch (err) {
       setError(err.message || `${provider} login failed`)
-    } finally {
       setSocialLoading(null)
     }
   }

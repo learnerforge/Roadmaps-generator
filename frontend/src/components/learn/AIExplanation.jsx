@@ -26,7 +26,7 @@ export default function AIExplanation({ nodeId }) {
         <button
           onClick={handleExplain}
           disabled={loading}
-          className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent-2 transition-colors disabled:opacity-50"
+          className="btn-primary !px-4 !py-1.5 !text-xs disabled:opacity-50"
         >
           {loading ? 'Generating...' : 'Explain with AI'}
         </button>

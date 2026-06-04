@@ -85,7 +85,7 @@ export default function RoadmapsPage() {
               <Link
                 key={rm.id}
                 to={`/roadmaps/${rm.slug}`}
-                className="group rounded-xl border border-border bg-bg-2 p-5 transition-all hover:border-accent/50 hover:shadow-lg hover:shadow-accent/5"
+                className="card-glow p-5 group"
               >
                 <div className="mb-3 flex items-center justify-between">
                   <span

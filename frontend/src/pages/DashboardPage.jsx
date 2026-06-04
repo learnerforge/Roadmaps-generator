@@ -53,15 +53,15 @@ export default function DashboardPage() {
         >
           {summary && (
             <div className="mb-10 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-xl border border-border bg-bg-2 p-5">
+              <div className="card-glow p-5">
                 <p className="text-xs text-text-3 uppercase tracking-wider">Active Roadmaps</p>
                 <p className="mt-2 text-3xl font-bold text-white">{summary.active_roadmaps || 0}</p>
               </div>
-              <div className="rounded-xl border border-border bg-bg-2 p-5">
+              <div className="card-glow p-5">
                 <p className="text-xs text-text-3 uppercase tracking-wider">Nodes Completed</p>
                 <p className="mt-2 text-3xl font-bold text-white">{summary.total_nodes_completed || 0}</p>
               </div>
-              <div className="rounded-xl border border-border bg-bg-2 p-5">
+              <div className="card-glow p-5">
                 <p className="text-xs text-text-3 uppercase tracking-wider">Day Streak</p>
                 <p className="mt-2 text-3xl font-bold text-white">{summary.streak_days || 0}</p>
               </div>
@@ -71,11 +71,11 @@ export default function DashboardPage() {
           <div>
             <h2 className="mb-4 text-lg font-semibold text-white">My Roadmaps</h2>
             {myRoadmaps.length === 0 ? (
-              <div className="rounded-xl border border-border bg-bg-2 p-8 text-center">
+              <div className="card-glow p-8 text-center">
                 <p className="mb-4 text-sm text-text-2">You haven't started any roadmaps yet.</p>
                 <Link
                   to="/roadmaps"
-                  className="inline-flex rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-2 transition-colors"
+                  className="btn-primary inline-flex"
                 >
                   Browse Roadmaps
                 </Link>
@@ -85,7 +85,7 @@ export default function DashboardPage() {
                 {myRoadmaps.map((item) => (
                   <div
                     key={item.roadmap.id}
-                    className="rounded-xl border border-border bg-bg-2 p-5 hover:border-accent/50 transition-colors"
+                    className="card-glow p-5"
                   >
                     <Link
                       to={`/roadmaps/${item.roadmap.slug}/learn`}
@@ -107,19 +107,19 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-text-3">
                         <span className="capitalize">{item.roadmap.category}</span>
-                        <span>Started {new Date(item.started_at).toLocaleDateString()}</span>
+                        <span>Started {item.started_at ? new Date(item.started_at).toLocaleDateString() : 'N/A'}</span>
                       </div>
                     </Link>
                     <div className="mt-3 flex gap-2">
                       <button
                         onClick={() => apiDownload(`/progress/export/${item.roadmap.slug}?format=json`, `${item.roadmap.slug}_progress.json`)}
-                        className="flex-1 rounded-lg border border-border px-3 py-1.5 text-[10px] text-text-3 hover:border-accent/50 hover:text-accent transition-colors"
+                        className="btn-ghost flex-1 !px-3 !py-1.5 !text-[10px]"
                       >
                         Export JSON
                       </button>
                       <button
                         onClick={() => apiDownload(`/progress/export/${item.roadmap.slug}?format=csv`, `${item.roadmap.slug}_progress.csv`)}
-                        className="flex-1 rounded-lg border border-border px-3 py-1.5 text-[10px] text-text-3 hover:border-accent/50 hover:text-accent transition-colors"
+                        className="btn-ghost flex-1 !px-3 !py-1.5 !text-[10px]"
                       >
                         Export CSV
                       </button>

@@ -91,7 +91,7 @@ export default function RoadmapDetailPage() {
                   <button
                     onClick={handleStart}
                     disabled={enrolling}
-                    className="rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-white hover:bg-accent-2 transition-all disabled:opacity-50"
+                    className="btn-primary !text-sm !px-6 !py-2.5 disabled:opacity-50"
                   >
                     {enrolling ? 'Starting...' : 'Start This Roadmap'}
                   </button>
