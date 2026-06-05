@@ -4,45 +4,44 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         bg: {
-          DEFAULT: '#0a0a0f',
-          2: '#111118',
-          3: '#16161f',
-          4: '#1c1c28',
+          DEFAULT: 'var(--color-bg)',
+          2: 'var(--color-bg-2)',
+          3: 'var(--color-bg-3)',
+          4: 'var(--color-bg-4)',
         },
         border: {
-          DEFAULT: '#2a2a3a',
-          2: '#353548',
+          DEFAULT: 'var(--color-border)',
+          2: 'var(--color-border-2)',
         },
         accent: {
-          DEFAULT: '#7c6af7',
-          2: '#5b4de0',
-          glow: 'rgba(124,106,247,0.15)',
+          DEFAULT: 'var(--color-accent)',
+          2: 'var(--color-accent-2)',
+          glow: 'var(--color-accent-glow)',
         },
         green: {
-          DEFAULT: '#22d3a0',
-          dim: 'rgba(34,211,160,0.12)',
+          DEFAULT: 'var(--color-green)',
+          dim: 'var(--color-green-dim)',
         },
         amber: {
-          DEFAULT: '#f59e0b',
-          dim: 'rgba(245,158,11,0.12)',
+          DEFAULT: 'var(--color-amber)',
+          dim: 'var(--color-amber-dim)',
         },
         red: {
-          DEFAULT: '#f87171',
-          dim: 'rgba(248,113,113,0.12)',
+          DEFAULT: 'var(--color-red)',
+          dim: 'var(--color-red-dim)',
         },
         blue: {
-          DEFAULT: '#60a5fa',
-          dim: 'rgba(96,165,250,0.12)',
+          DEFAULT: 'var(--color-blue)',
+          dim: 'var(--color-blue-dim)',
         },
         text: {
-          DEFAULT: '#e8e8f0',
-          2: '#9898b0',
-          3: '#5a5a72',
+          DEFAULT: 'var(--color-text)',
+          2: 'var(--color-text-2)',
+          3: 'var(--color-text-3)',
         },
       },
       fontFamily: {

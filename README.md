@@ -1,10 +1,10 @@
 # PathForge AI — AI-Powered Career Roadmap Platform
 
-Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **86 real roadmaps from roadmap.sh**, visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,624 topics, 13,720 dependencies — 0 isolated nodes), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
 
 ## Features
 
-- **86 Role & Skill Roadmaps** — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
+- **87 Role & Skill Roadmaps** (9,635 topics, 2,211 dependencies) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
 - **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node
 - **Adaptive Quizzes** — Generate multiple-choice questions per topic to test understanding
 - **Project Suggestions** — Get coding project ideas based on completed topics
@@ -331,7 +331,7 @@ copy .env.example .env        # Windows
 # Create the database (edit credentials as needed)
 createdb pathforge
 
-# Seed 86 roadmaps with real data from roadmap.sh
+# Seed 87 roadmaps with real data from roadmap.sh
 python -m seed_data
 
 # Start development server
@@ -377,7 +377,7 @@ The seed script (`backend/seed_data.py`):
 4. Parses **edges** to build `NodeDependency` records
 5. For roadmaps that have migrated from JSON to markdown content files, falls back to `fetch_markdown_topics()` — parses filenames in `{slug}/content/` into flat topic lists
 6. Maps each roadmap to a hardcoded metadata entry (title, category, difficulty, description)
-7. Inserts everything into PostgreSQL — **86 roadmaps with 9,501 real nodes and 2,215 dependency edges**
+7. Inserts everything into PostgreSQL — **87 roadmaps with 9,635 real nodes and 2,211 dependency edges**
 
 The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped. 3-attempt retry logic handles transient GitHub API failures.
 
@@ -679,7 +679,7 @@ Authorization: Bearer <admin-token>
   "total_users": 42,
   "total_roadmaps": 86,
   "published_roadmaps": 86,
-  "total_nodes": 9501,
+  "total_nodes": 9635,
   "open_feedback": 3
 }
 

@@ -2,6 +2,7 @@ export const CATEGORIES = [
   'All', 'role-based', 'skill-based', 'absolute-beginners',
   'web-development', 'frameworks', 'languages', 'ai-ml',
   'devops', 'mobile', 'databases', 'cyber-security',
+  'computer-science', 'security', 'version-control', 'ui-ux', 'soft-skills',
 ]
 
 export const CATEGORY_COLORS = {
@@ -16,6 +17,11 @@ export const CATEGORY_COLORS = {
   'mobile': { border: '#2dd4bf', bg: 'rgba(45,212,191,0.08)', badge: '#2dd4bf', tw: 'bg-teal-dim text-teal-400 border-teal-400/20' },
   'databases': { border: '#818cf8', bg: 'rgba(129,140,248,0.08)', badge: '#818cf8', tw: 'bg-indigo-dim text-indigo-400 border-indigo-400/20' },
   'cyber-security': { border: '#f87171', bg: 'rgba(248,113,113,0.08)', badge: '#f87171', tw: 'bg-red-dim text-red border-red/20' },
+  'computer-science': { border: '#34d399', bg: 'rgba(52,211,153,0.08)', badge: '#34d399', tw: 'bg-emerald-dim text-emerald-400 border-emerald-400/20' },
+  'security': { border: '#fb7185', bg: 'rgba(251,113,133,0.08)', badge: '#fb7185', tw: 'bg-rose-dim text-rose-400 border-rose-400/20' },
+  'version-control': { border: '#a78bfa', bg: 'rgba(167,139,250,0.08)', badge: '#a78bfa', tw: 'bg-violet-dim text-violet-400 border-violet-400/20' },
+  'ui-ux': { border: '#67e8f9', bg: 'rgba(103,232,249,0.08)', badge: '#67e8f9', tw: 'bg-cyan-dim text-cyan-400 border-cyan-400/20' },
+  'soft-skills': { border: '#fbbf24', bg: 'rgba(251,191,36,0.08)', badge: '#fbbf24', tw: 'bg-amber-dim text-amber border-amber/20' },
 }
 
 export const STATUS_COLORS = {

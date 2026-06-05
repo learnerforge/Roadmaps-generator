@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import os
+import json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import httpx
@@ -15,6 +16,7 @@ RAW_BASE = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/src/data/roadmaps
 API_BASE = f"https://api.github.com/repos/{REPO}/contents/src/data/roadmaps"
 
 EXCLUDE_DIRS = {"content", "assets", "resources"}
+CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "content_cache.json")
 
 ROADMAP_META = {
     "frontend": {"title": "Frontend Developer", "category": "role-based", "difficulty": "beginner", "description": "Step by step guide to becoming a modern frontend developer in 2026."},
@@ -107,9 +109,7 @@ ROADMAP_META = {
     "api-security-best-practices": {"title": "API Security Best Practices", "category": "devops", "difficulty": "intermediate", "description": "API security: authentication, authorization, rate limiting, and threat protection."},
     "server-side-game-developer": {"title": "Server-Side Game Developer", "category": "role-based", "difficulty": "advanced", "description": "Server-side game development: game servers, networking, matchmaking, and backend systems."},
     "software-design-architecture": {"title": "Software Design & Architecture", "category": "skill-based", "difficulty": "advanced", "description": "Software design and architecture: SOLID, design patterns, clean architecture, and system design."},
-    "backend-performance-best-practices": {"title": "Backend Performance", "category": "devops", "difficulty": "advanced", "description": "Backend performance: caching, database optimization, profiling, and scaling."},
-    "frontend-performance-best-practices": {"title": "Frontend Performance", "category": "devops", "difficulty": "intermediate", "description": "Frontend performance: Core Web Vitals, lazy loading, bundle optimization, and rendering."},
-    "code-review-best-practices": {"title": "Code Review Best Practices", "category": "devops", "difficulty": "beginner", "description": "Code review best practices: review workflows, constructive feedback, and automation."},
+    "openclaw": {"title": "Open Claw", "category": "ai-ml", "difficulty": "intermediate", "description": "Open Claw: AI agent framework for automation, tool use, and multi-agent systems."},
 }
 
 
@@ -124,41 +124,77 @@ async def fetch_json(client: httpx.AsyncClient, slug: str) -> dict | None:
     return None
 
 
-async def fetch_markdown_topics(client: httpx.AsyncClient, slug: str) -> list[dict]:
-    """Parse markdown content filenames into topic-like node dicts."""
-    content_url = f"{API_BASE}/{slug}/content"
+def load_content_cache() -> dict[str, list[str]]:
+    """Load cached content map from local JSON file."""
+    try:
+        with open(CACHE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_content_cache(content_map: dict[str, list[str]]):
+    """Save content map to local JSON file."""
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(content_map, f, indent=2)
+    print(f"  Cached {sum(len(v) for v in content_map.values())} files across {len(content_map)} roadmaps")
+
+
+async def fetch_repo_archive(client: httpx.AsyncClient) -> dict[str, list[str]] | None:
+    """Download and extract repo archive to build content map without API rate limits."""
+    import io, zipfile
+
+    archive_url = f"https://github.com/{REPO}/archive/refs/heads/{BRANCH}.zip"
     for attempt in range(3):
         try:
-            resp = await client.get(content_url, timeout=15)
+            resp = await client.get(archive_url, timeout=60)
             if resp.status_code == 200:
-                items = resp.json()
                 break
-            elif resp.status_code == 403 and attempt < 2:
-                await asyncio.sleep(2)
-                continue
-            return []
-        except Exception:
-            if attempt < 2:
-                await asyncio.sleep(2)
-                continue
-            return []
+            print(f"  Archive download failed: HTTP {resp.status_code}, retrying...")
+            await asyncio.sleep(3)
+        except Exception as e:
+            print(f"  Archive download error: {e}, retrying...")
+            await asyncio.sleep(3)
     else:
-        return []
+        return None
 
+    content_files: dict[str, list[str]] = {}
+    prefix = f"developer-roadmap-master/src/data/roadmaps/"
+    try:
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+            for path in z.namelist():
+                if path.endswith(".md") and "/content/" in path and path.startswith(prefix):
+                    parts = path[len(prefix):].split("/")
+                    slug = parts[0]
+                    if slug not in content_files:
+                        content_files[slug] = []
+                    content_files[slug].append(path)
+    except Exception as e:
+        print(f"  Error extracting archive: {e}")
+        return None
+
+    return content_files
+
+
+def parse_markdown_topics(files: list[str]) -> list[dict]:
+    """Parse markdown file paths into topic-like node dicts."""
     topics = []
-    for item in items:
-        if item["type"] != "file" or not item["name"].endswith(".md"):
+    for path in files:
+        name = path.rsplit("/", 1)[-1]
+        # Skip placeholder files whose name is just a hash
+        if name.startswith("@"):
             continue
-        name = item["name"]
         label = name.rsplit("@", 1)[0].replace("-", " ").replace("_", " ").title()
-
+        label = label.strip()
+        if not label:
+            continue
         topic = {
+            "id": path,
             "type": "topic",
             "data": {"label": label},
             "description": None,
         }
         topics.append(topic)
-
     return topics
 
 
@@ -168,31 +204,48 @@ async def seed():
         admin = await db.execute(select(Profile).limit(1))
         admin_user = admin.scalar_one_or_none()
 
+        # Clear existing roadmap data for fresh re-seed
+        print("Clearing existing roadmap data...")
+        await db.execute(NodeDependency.__table__.delete())
+        await db.execute(RoadmapNode.__table__.delete())
+        await db.execute(Roadmap.__table__.delete())
+        await db.commit()
+        print("Cleared. Starting fresh seed...")
+
+        # Build content map early: try cache first, then archive download
+        content_map = load_content_cache()
+        if not content_map:
+            print("Downloading repo archive for markdown content discovery...")
+            content_map = await fetch_repo_archive(client)
+            if content_map:
+                save_content_cache(content_map)
+            else:
+                print("  Archive download failed too. Proceeding with JSON-only roadmaps.")
+                content_map = {}
+
         dir_resp = await client.get(API_BASE, timeout=15)
-        if dir_resp.status_code != 200:
-            print(f"Failed to list roadmaps: HTTP {dir_resp.status_code}")
-            print("Falling back to ROADMAP_META slugs only...")
-            dirs = [d for d in ROADMAP_META.keys() if d not in EXCLUDE_DIRS]
-        else:
+        if dir_resp.status_code == 200:
             dirs = [
                 item["name"]
                 for item in dir_resp.json()
                 if item["type"] == "dir" and item["name"] not in EXCLUDE_DIRS
             ]
+        elif content_map:
+            dirs = sorted(content_map.keys())
+            print(f"Using content map for directory listing ({len(dirs)} roadmaps)")
+        else:
+            print(f"Failed to list roadmaps: HTTP {dir_resp.status_code}")
+            print("Falling back to ROADMAP_META slugs only...")
+            dirs = [d for d in ROADMAP_META.keys() if d not in EXCLUDE_DIRS]
 
         print(f"Found {len(dirs)} roadmap directories")
+        print(f"Found markdown content for {len(content_map)} roadmaps")
 
         total_roadmaps = 0
         total_nodes = 0
         total_deps = 0
 
         for slug in sorted(dirs):
-            await asyncio.sleep(0.5)
-            existing = await db.execute(select(Roadmap).where(Roadmap.slug == slug))
-            if existing.scalar_one_or_none():
-                print(f"  Skipping {slug} (already exists)")
-                continue
-
             meta = ROADMAP_META.get(slug)
             if not meta:
                 print(f"  Skipping {slug} (no metadata mapping)")
@@ -209,8 +262,8 @@ async def seed():
                 topic_nodes = [n for n in nodes_data if n.get("type") in ("topic", "subtopic")]
 
             if not topic_nodes:
-                # Fallback: try markdown content
-                md_topics = await fetch_markdown_topics(client, slug)
+                # Fallback: try markdown content from pre-fetched tree
+                md_topics = parse_markdown_topics(content_map.get(slug, []))
                 if md_topics:
                     topic_nodes = md_topics
                     is_markdown = True
@@ -263,16 +316,87 @@ async def seed():
                     node_map[source_id] = db_node.id
                 total_nodes += 1
 
-            dep_count = 0
+            # ── Pass 1: Edge contraction through structural nodes ──
+            all_node_ids = {n.get("id") for n in nodes_data if n.get("id")}
+            topic_ids = {n.get("id") for n in topic_nodes if n.get("id")}
+
+            adj = {}
             for edge in edges_data:
-                source_id = edge.get("source")
-                target_id = edge.get("target")
-                if source_id in node_map and target_id in node_map:
-                    dep = NodeDependency(
-                        node_id=node_map[target_id],
-                        depends_on_node_id=node_map[source_id],
-                    )
-                    db.add(dep)
+                src = edge.get("source")
+                tgt = edge.get("target")
+                if src and tgt and src in all_node_ids and tgt in all_node_ids and src != tgt:
+                    adj.setdefault(src, []).append(tgt)
+
+            dep_count = 0
+            created = set()
+
+            for src_id in topic_ids:
+                if src_id not in node_map:
+                    continue
+                visited = {src_id}
+                queue = list(adj.get(src_id, []))
+                while queue:
+                    cur = queue.pop(0)
+                    if cur in visited or cur not in all_node_ids:
+                        continue
+                    visited.add(cur)
+                    if cur in topic_ids and cur != src_id and cur in node_map:
+                        pair = (node_map[cur], node_map[src_id])
+                        if pair not in created:
+                            created.add(pair)
+                            db.add(NodeDependency(node_id=node_map[cur], depends_on_node_id=node_map[src_id]))
+                            dep_count += 1
+                            total_deps += 1
+                        continue
+                    for nxt in adj.get(cur, []):
+                        if nxt not in visited:
+                            queue.append(nxt)
+
+            # ── Pass 2: Spatial edge inference from node positions ──
+            COL_THRESHOLD = 120
+            Y_GAP_THRESHOLD = 160
+
+            topic_positions = {}
+            for n in nodes_data:
+                if n.get("type") in ("topic", "subtopic") and n.get("id"):
+                    pos = n.get("position", {})
+                    topic_positions[n["id"]] = (pos.get("x", 0), pos.get("y", 0))
+
+            cols = {}
+            for tid, (x, y) in topic_positions.items():
+                if tid not in node_map:
+                    continue
+                matched = False
+                for cx in list(cols.keys()):
+                    if abs(x - cx) < COL_THRESHOLD:
+                        cols[cx].append((tid, y))
+                        matched = True
+                        break
+                if not matched:
+                    cols[x] = [(tid, y)]
+
+            for cx in sorted(cols.keys()):
+                items = sorted(cols[cx], key=lambda t: t[1])
+                for i in range(len(items) - 1):
+                    tid_a, y_a = items[i]
+                    tid_b, y_b = items[i + 1]
+                    gap = y_b - y_a
+                    if 0 < gap < Y_GAP_THRESHOLD:
+                        pair = (node_map[tid_b], node_map[tid_a])
+                        if pair not in created:
+                            created.add(pair)
+                            db.add(NodeDependency(node_id=node_map[tid_b], depends_on_node_id=node_map[tid_a]))
+                            dep_count += 1
+                            total_deps += 1
+
+            # ── Pass 3: order_index chain fill — ensures every node connects ──
+            order_ids = [n.get("id") for n in topic_nodes if n.get("id") in node_map]
+            for i in range(len(order_ids) - 1):
+                tid_a, tid_b = order_ids[i], order_ids[i + 1]
+                pair = (node_map[tid_b], node_map[tid_a])
+                if pair not in created:
+                    created.add(pair)
+                    db.add(NodeDependency(node_id=node_map[tid_b], depends_on_node_id=node_map[tid_a]))
                     dep_count += 1
                     total_deps += 1
 
