@@ -1,10 +1,10 @@
 # PathForge AI — AI-Powered Career Roadmap Platform
 
-Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,624 topics, 13,720 dependencies — 0 isolated nodes), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,532 topics, 13,628 dependency edges — 0 isolated nodes), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
 
 ## Features
 
-- **87 Role & Skill Roadmaps** (9,635 topics, 2,211 dependencies) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
+- **87 Role & Skill Roadmaps** (9,532 topics, 13,628 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
 - **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node
 - **Adaptive Quizzes** — Generate multiple-choice questions per topic to test understanding
 - **Project Suggestions** — Get coding project ideas based on completed topics

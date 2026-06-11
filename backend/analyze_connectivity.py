@@ -56,7 +56,6 @@ async def analyze():
             starts = []  # 0 incoming, 1+ outgoing
             ends = []    # 1+ incoming, 0 outgoing
             mid = []     # 1+ incoming, 1+ outgoing
-            dead = []    # 0 incoming, 0 outgoing AND no deps at all
             
             for nid_str, node in node_map.items():
                 in_deg = len(incoming.get(nid_str, []))
@@ -64,7 +63,6 @@ async def analyze():
                 
                 if in_deg == 0 and out_deg == 0:
                     isolated.append(node.title or "?")
-                    dead.append(node.title or "?")
                 elif in_deg == 0 and out_deg > 0:
                     starts.append((node.title or "?", out_deg))
                 elif in_deg > 0 and out_deg == 0:
@@ -92,19 +90,19 @@ async def analyze():
             
             if starts and len(starts) <= 8:
                 for t, od in starts[:8]:
-                    print(f"    START -> {t[:55]} (→{od})")
+                    print(f"    START -> {t[:55]} (->{od})")
             elif starts:
                 print(f"    ({len(starts)} start nodes, showing first 8)")
                 for t, od in list(starts)[:8]:
-                    print(f"    START -> {t[:55]} (→{od})")
+                    print(f"    START -> {t[:55]} (->{od})")
             
             if ends and len(ends) <= 8:
                 for t, ide in ends[:8]:
-                    print(f"    END <- {t[:55]} ({ide}→)")
+                    print(f"    END <- {t[:55]} ({ide}->)")
             elif ends:
                 print(f"    ({len(ends)} end nodes, showing first 8)")
                 for t, ide in list(ends)[:8]:
-                    print(f"    END <- {t[:55]} ({ide}→)")
+                    print(f"    END <- {t[:55]} ({ide}->)")
             
             if isolated and len(isolated) <= 15:
                 for t in isolated[:15]:

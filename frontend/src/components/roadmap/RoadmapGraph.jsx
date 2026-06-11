@@ -1,4 +1,4 @@
-import { useCallback, useMemo, memo, useState } from 'react'
+import { useCallback, useMemo, memo, useState, useEffect } from 'react'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, Handle, Position, Panel } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { CATEGORY_COLORS } from '../../lib/constants'
@@ -8,7 +8,7 @@ const TARGET_H = 4000
 const PAD = 120
 
 function normalizeNodes(rawNodes, category) {
-  if (!rawNodes.length) return []
+  if (!rawNodes || !rawNodes.length) return []
 
   const xs = rawNodes.map(n => n.position_x ?? 0)
   const ys = rawNodes.map(n => n.position_y ?? 0)
@@ -104,6 +104,7 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
   )
 
   const initialEdges = useMemo(() => {
+    if (!rawEdges || !rawEdges.length) return []
     const nodeIds = new Set(initialNodes.map(n => n.id))
     return rawEdges
       .filter(e => nodeIds.has(String(e.source)) && nodeIds.has(String(e.target)))
@@ -121,6 +122,14 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const nodeTypes = useMemo(() => ({ graphNode: GraphNodeMemo }), [])
+
+  useEffect(() => {
+    setNodes(initialNodes)
+  }, [initialNodes, setNodes])
+
+  useEffect(() => {
+    setEdges(initialEdges)
+  }, [initialEdges, setEdges])
 
   const isLarge = initialNodes.length > 80
 
@@ -155,6 +164,12 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeKeyDown={(event, node) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onNodeClick(event, node)
+          }
+        }}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: isLarge ? 0.3 : 0.15 }}

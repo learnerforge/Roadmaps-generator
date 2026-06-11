@@ -119,7 +119,6 @@ async def gen_projects(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models.roadmap import Roadmap
     rm_result = await db.execute(select(Roadmap).where(Roadmap.id == data.roadmap_id))
     roadmap = rm_result.scalar_one_or_none()
     if not roadmap:

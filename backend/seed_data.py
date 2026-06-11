@@ -2,7 +2,11 @@ import asyncio
 import sys
 import os
 import json
+import logging
+from collections import deque
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+logger = logging.getLogger(__name__)
 
 import httpx
 from app.db.session import AsyncSessionLocal, init_db
@@ -119,8 +123,8 @@ async def fetch_json(client: httpx.AsyncClient, slug: str) -> dict | None:
         resp = await client.get(url, timeout=15)
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("fetch_json failed for %s: %s", slug, e)
     return None
 
 
@@ -179,19 +183,23 @@ async def fetch_repo_archive(client: httpx.AsyncClient) -> dict[str, list[str]] 
 def parse_markdown_topics(files: list[str]) -> list[dict]:
     """Parse markdown file paths into topic-like node dicts."""
     topics = []
+    seen = set()
     for path in files:
         name = path.rsplit("/", 1)[-1]
         # Skip placeholder files whose name is just a hash
-        if name.startswith("@"):
+        if name.startswith("@") or name == "index.md":
             continue
-        label = name.rsplit("@", 1)[0].replace("-", " ").replace("_", " ").title()
-        label = label.strip()
-        if not label:
+        # Strip .md extension before title-casing to avoid "Hello World.Md"
+        stem = name.removesuffix(".md").rsplit("@", 1)[0].replace("-", " ").replace("_", " ").title().strip()
+        if not stem:
             continue
+        if stem in seen:
+            continue
+        seen.add(stem)
         topic = {
             "id": path,
             "type": "topic",
-            "data": {"label": label},
+            "data": {"label": stem},
             "description": None,
         }
         topics.append(topic)
@@ -253,12 +261,13 @@ async def seed():
 
             data = await fetch_json(client, slug)
             topic_nodes = []
+            nodes_data = []
             edges_data = []
             is_markdown = False
 
             if data:
-                nodes_data = data.get("nodes", [])
-                edges_data = data.get("edges", [])
+                nodes_data = data.get("nodes") or []
+                edges_data = data.get("edges") or []
                 topic_nodes = [n for n in nodes_data if n.get("type") in ("topic", "subtopic")]
 
             if not topic_nodes:
@@ -334,9 +343,9 @@ async def seed():
                 if src_id not in node_map:
                     continue
                 visited = {src_id}
-                queue = list(adj.get(src_id, []))
+                queue = deque(adj.get(src_id, []))
                 while queue:
-                    cur = queue.pop(0)
+                    cur = queue.popleft()
                     if cur in visited or cur not in all_node_ids:
                         continue
                     visited.add(cur)
