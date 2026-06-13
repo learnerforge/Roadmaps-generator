@@ -72,7 +72,7 @@ export default function DashboardPage() {
             <h2 className="mb-4 text-lg font-semibold text-white">My Roadmaps</h2>
             {myRoadmaps.length === 0 ? (
               <div className="card-glow p-8 text-center">
-                <p className="mb-4 text-sm text-text-2">You haven't started any roadmaps yet.</p>
+                <p className="mb-4 text-sm text-text-2">You haven&apos;t started any roadmaps yet.</p>
                 <Link
                   to="/roadmaps"
                   className="btn-primary inline-flex"

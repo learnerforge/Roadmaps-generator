@@ -12,7 +12,12 @@ async function handleResponse(res) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Request failed' }))
-    throw new Error(err.detail || 'Request failed')
+    const detail = err.detail
+    const message = typeof detail === 'string' ? detail
+      : Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join('; ')
+      : typeof detail === 'object' ? JSON.stringify(detail)
+      : 'Request failed'
+    throw new Error(message)
   }
   return res.status === 204 ? null : res.json()
 }
@@ -33,13 +38,13 @@ function buildFetchOptions(options) {
 }
 
 async function fetchWithRetry(url, options, retries = 2) {
-  const opts = buildFetchOptions(options)
-
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const opts = buildFetchOptions(options)
     try {
       const res = await fetch(url, opts)
       return res
     } catch (err) {
+      if (err.name === 'AbortError') throw err
       if (attempt === retries) throw err
       await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
     }

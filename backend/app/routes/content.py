@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete as sa_delete
+from sqlalchemy import select, func
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.models.user import Profile
@@ -10,7 +10,6 @@ from app.models.content import Note, Bookmark
 from app.utils.db_helpers import parse_uuid
 from app.utils.pagination import PaginationParams
 from app.schemas.progress import FeedbackCreate, FeedbackRead, NoteCreate, NoteRead, BookmarkToggleResponse
-from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -44,6 +43,10 @@ async def create_feedback(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if data.node_id:
+        node_result = await db.execute(select(RoadmapNode).where(RoadmapNode.id == data.node_id))
+        if not node_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Node not found")
     feedback = Feedback(
         user_id=user.id,
         node_id=data.node_id,
@@ -109,6 +112,9 @@ async def create_note(
     db: AsyncSession = Depends(get_db),
 ):
     uid = parse_uuid(node_id, "node_id")
+    node_result = await db.execute(select(RoadmapNode).where(RoadmapNode.id == uid))
+    if not node_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Node not found")
     note = Note(user_id=user.id, node_id=uid, content=data.content)
     db.add(note)
     await db.commit()

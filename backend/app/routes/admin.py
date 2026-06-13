@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.db.session import get_db
@@ -73,6 +73,11 @@ async def list_users(
     }
 
 
+VALID_ROLES = {"user", "admin", "super_admin"}
+
+VALID_FEEDBACK_STATUSES = {"open", "resolved", "dismissed"}
+
+
 @router.patch("/users/{user_id}/role")
 async def change_role(
     user_id: str,
@@ -89,7 +94,10 @@ async def change_role(
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
-    target.role = data.get("role", target.role)
+    new_role = data.get("role", target.role)
+    if new_role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {new_role}")
+    target.role = new_role
     await db.commit()
     return {"success": True, "new_role": target.role}
 
@@ -139,6 +147,9 @@ async def update_feedback(
     fb = result.scalar_one_or_none()
     if not fb:
         raise HTTPException(status_code=404, detail="Feedback not found")
-    fb.status = data.get("status", fb.status)
+    new_status = data.get("status", fb.status)
+    if new_status not in VALID_FEEDBACK_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
+    fb.status = new_status
     await db.commit()
     return {"success": True}

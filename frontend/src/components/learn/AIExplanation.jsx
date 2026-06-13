@@ -1,10 +1,15 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { apiPost } from '../../lib/api'
 import Spinner from '../shared/Spinner'
 
 export default function AIExplanation({ nodeId }) {
   const [explanation, setExplanation] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setExplanation('')
+    setLoading(false)
+  }, [nodeId])
 
   const handleExplain = useCallback(async () => {
     setLoading(true)
@@ -38,7 +43,7 @@ export default function AIExplanation({ nodeId }) {
         </div>
       )}
       {!explanation && !loading && (
-        <p className="text-xs text-text-3">Click "Explain with AI" to get a beginner-friendly explanation of this topic.</p>
+        <p className="text-xs text-text-3">Click &quot;Explain with AI&quot; to get a beginner-friendly explanation of this topic.</p>
       )}
     </div>
   )

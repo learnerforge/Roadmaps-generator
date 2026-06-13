@@ -41,6 +41,7 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
         })
       return () => abort.abort()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSocialLogin = async (provider) => {

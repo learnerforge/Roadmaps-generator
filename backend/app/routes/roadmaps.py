@@ -15,7 +15,6 @@ from app.schemas.roadmap import (
     ResourceCreate, ResourceRead,
 )
 from app.utils.db_helpers import parse_uuid, resolve_roadmap
-from app.utils.pagination import PaginationParams
 
 router = APIRouter()
 
@@ -305,18 +304,14 @@ async def create_roadmap(
     )
 
 
-@router.patch("/{roadmap_id}", response_model=RoadmapRead)
+@router.patch("/{roadmap_ref}", response_model=RoadmapRead)
 async def update_roadmap(
-    roadmap_id: str,
+    roadmap_ref: str,
     data: RoadmapUpdate,
     db: AsyncSession = Depends(get_db),
     user: Profile = Depends(get_current_admin),
 ):
-    uid = parse_uuid(roadmap_id, "roadmap_id")
-    result = await db.execute(select(Roadmap).where(Roadmap.id == uid))
-    roadmap = result.scalar_one_or_none()
-    if not roadmap:
-        raise HTTPException(status_code=404, detail="Roadmap not found")
+    roadmap = await resolve_roadmap(db, roadmap_ref)
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(roadmap, field, value)
@@ -334,33 +329,25 @@ async def update_roadmap(
     )
 
 
-@router.delete("/{roadmap_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{roadmap_ref}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_roadmap(
-    roadmap_id: str,
+    roadmap_ref: str,
     db: AsyncSession = Depends(get_db),
     user: Profile = Depends(get_current_admin),
 ):
-    uid = parse_uuid(roadmap_id, "roadmap_id")
-    result = await db.execute(select(Roadmap).where(Roadmap.id == uid))
-    roadmap = result.scalar_one_or_none()
-    if not roadmap:
-        raise HTTPException(status_code=404, detail="Roadmap not found")
+    roadmap = await resolve_roadmap(db, roadmap_ref)
     await db.delete(roadmap)
     await db.commit()
 
 
-@router.patch("/{roadmap_id}/publish")
+@router.patch("/{roadmap_ref}/publish")
 async def toggle_publish(
-    roadmap_id: str,
+    roadmap_ref: str,
     data: dict,
     db: AsyncSession = Depends(get_db),
     user: Profile = Depends(get_current_admin),
 ):
-    uid = parse_uuid(roadmap_id, "roadmap_id")
-    result = await db.execute(select(Roadmap).where(Roadmap.id == uid))
-    roadmap = result.scalar_one_or_none()
-    if not roadmap:
-        raise HTTPException(status_code=404, detail="Roadmap not found")
+    roadmap = await resolve_roadmap(db, roadmap_ref)
     roadmap.is_published = data.get("is_published", not roadmap.is_published)
     await db.commit()
     return {"is_published": roadmap.is_published}
@@ -377,15 +364,15 @@ async def list_nodes(roadmap_id: str, db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("/{roadmap_id}/nodes", response_model=NodeRead, status_code=status.HTTP_201_CREATED)
+@router.post("/{roadmap_ref}/nodes", response_model=NodeRead, status_code=status.HTTP_201_CREATED)
 async def create_node(
-    roadmap_id: str,
+    roadmap_ref: str,
     data: NodeCreate,
     db: AsyncSession = Depends(get_db),
     user: Profile = Depends(get_current_admin),
 ):
-    uid = parse_uuid(roadmap_id, "roadmap_id")
-    node = RoadmapNode(roadmap_id=uid, **data.model_dump())
+    roadmap = await resolve_roadmap(db, roadmap_ref)
+    node = RoadmapNode(roadmap_id=roadmap.id, **data.model_dump())
     db.add(node)
     await db.commit()
     await db.refresh(node)

@@ -1,4 +1,5 @@
 import os
+import pathlib
 import secrets
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
@@ -41,7 +42,10 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=str(pathlib.Path(__file__).parent.parent.parent / ".env"),
+        env_file_encoding="utf-8",
+    )
 
     def validate_startup(self):
         errors = []

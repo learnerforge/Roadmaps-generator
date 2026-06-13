@@ -24,10 +24,11 @@ async def explain_node(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    level_key = f"explain_{user.experience_level}"
     cached = await db.execute(
         select(AIExplanation).where(
             AIExplanation.node_id == data.node_id,
-            AIExplanation.prompt_type == "explain",
+            AIExplanation.prompt_type == level_key,
         )
     )
     cached_result = cached.scalar_one_or_none()
@@ -39,7 +40,7 @@ async def explain_node(
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    explanation = await explain_topic(
+    result = await explain_topic(
         topic_title=node.title,
         experience_level=user.experience_level,
         roadmap_title=node.category or "General",
@@ -47,15 +48,15 @@ async def explain_node(
 
     ai_exp = AIExplanation(
         node_id=data.node_id,
-        prompt_type="explain",
-        response_text=explanation,
-        model_used="gemini",
-        openai_fallback=False,
+        prompt_type=level_key,
+        response_text=result["text"],
+        model_used=result["model_used"],
+        openai_fallback=result["openai_fallback"],
     )
     db.add(ai_exp)
     await db.commit()
 
-    return {"explanation": explanation, "cached": False}
+    return {"explanation": result["text"], "cached": False}
 
 
 @router.post("/simplify-node")
@@ -79,19 +80,19 @@ async def simplify_node(
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    result = await simplify_topic(topic_title=node.title)
+    svc_result = await simplify_topic(topic_title=node.title)
 
     ai_exp = AIExplanation(
         node_id=data.node_id,
         prompt_type="simplify",
-        response_text=result,
-        model_used="gemini",
-        openai_fallback=False,
+        response_text=svc_result["text"],
+        model_used=svc_result["model_used"],
+        openai_fallback=svc_result["openai_fallback"],
     )
     db.add(ai_exp)
     await db.commit()
 
-    return {"explanation": result, "cached": False}
+    return {"explanation": svc_result["text"], "cached": False}
 
 
 @router.post("/generate-quiz")
@@ -110,6 +111,8 @@ async def gen_quiz(
         count=data.count,
         difficulty_level=node.difficulty or "beginner",
     )
+    if not questions:
+        raise HTTPException(status_code=502, detail="AI returned an invalid quiz response")
     return {"questions": questions}
 
 

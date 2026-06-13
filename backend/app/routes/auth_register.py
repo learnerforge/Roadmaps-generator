@@ -61,16 +61,14 @@ async def social_login(data: SocialLogin, db: AsyncSession = Depends(get_db)):
     if data.provider == "google":
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": data.token},
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {data.token}"},
             )
             if resp.status_code != 200:
                 raise HTTPException(status_code=401, detail="Invalid Google token")
             info = resp.json()
             if not settings.GOOGLE_CLIENT_ID:
                 raise HTTPException(status_code=500, detail="Google OAuth not configured")
-            if info.get("aud") != settings.GOOGLE_CLIENT_ID:
-                raise HTTPException(status_code=401, detail="Token audience mismatch")
             email = info.get("email")
             name = info.get("name", email.split("@")[0] if email else "User")
             avatar = info.get("picture")

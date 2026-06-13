@@ -143,10 +143,14 @@ async def update_node_status(
         )
     )
     ur = ur_result.scalar_one_or_none()
-    if ur:
-        ur.completion_pct = pct
-        if pct >= 100:
-            ur.completed_at = datetime.now(timezone.utc)
+    if not ur:
+        ur = UserRoadmap(user_id=user.id, roadmap_id=node.roadmap_id)
+        db.add(ur)
+    ur.completion_pct = pct
+    if pct >= 100:
+        ur.completed_at = datetime.now(timezone.utc)
+    else:
+        ur.completed_at = None
 
     await db.commit()
 

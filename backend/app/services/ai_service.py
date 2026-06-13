@@ -101,16 +101,19 @@ async def call_openai(prompt: str) -> str:
         raise RuntimeError(f"OpenAI API error: {str(e)}")
 
 
-async def call_ai(prompt: str) -> str:
+async def call_ai(prompt: str) -> dict:
     if settings.GEMINI_API_KEY:
         try:
-            return await call_gemini(prompt)
+            text = await call_gemini(prompt)
+            return {"text": text, "model_used": "gemini", "openai_fallback": False}
         except Exception:
             if settings.OPENAI_API_KEY:
-                return await call_openai(prompt)
+                text = await call_openai(prompt)
+                return {"text": text, "model_used": "openai", "openai_fallback": True}
             raise
     elif settings.OPENAI_API_KEY:
-        return await call_openai(prompt)
+        text = await call_openai(prompt)
+        return {"text": text, "model_used": "openai", "openai_fallback": False}
     raise RuntimeError("No AI API key configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env")
 
 
@@ -118,7 +121,7 @@ async def explain_topic(
     topic_title: str,
     experience_level: str = "beginner",
     roadmap_title: str = "General",
-) -> str:
+) -> dict:
     prompt = EXPLAIN_PROMPT.format(
         topic_title=topic_title,
         experience_level=experience_level,
@@ -127,7 +130,7 @@ async def explain_topic(
     return await call_ai(prompt)
 
 
-async def simplify_topic(topic_title: str) -> str:
+async def simplify_topic(topic_title: str) -> dict:
     prompt = SIMPLIFY_PROMPT.format(topic_title=topic_title)
     return await call_ai(prompt)
 
@@ -139,8 +142,9 @@ async def generate_quiz(topic_title: str, count: int = 5, difficulty_level: str 
         difficulty_level=difficulty_level,
     )
     result = await call_ai(prompt)
+    text = result["text"]
     try:
-        cleaned = result.strip()
+        cleaned = text.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1]
         if cleaned.endswith("```"):
@@ -153,7 +157,7 @@ async def generate_quiz(topic_title: str, count: int = 5, difficulty_level: str 
 async def suggest_projects(
     roadmap_title: str,
     completed_topics: list[str],
-) -> str:
+) -> dict:
     prompt = PROJECT_PROMPT.format(
         roadmap_title=roadmap_title,
         completed_topics_list=", ".join(completed_topics),
@@ -167,7 +171,7 @@ async def generate_weekly_plan(
     hours_per_week: int,
     completed_nodes: list[str],
     remaining_nodes: list[str],
-) -> str:
+) -> dict:
     prompt = WEEKLY_PLAN_PROMPT.format(
         roadmap_title=roadmap_title,
         experience_level=experience_level,

@@ -1,16 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from app.db.session import get_db
-from app.core.security import get_current_user, get_current_admin
+from app.core.security import get_current_user
 from app.models.user import Profile
-from app.models.roadmap import Roadmap, RoadmapNode
 from app.schemas.user import ProfileUpdate, ProfileRead
-from app.schemas.roadmap import (
-    RoadmapCreate, RoadmapUpdate, RoadmapRead,
-    NodeCreate, NodeUpdate, NodeRead, ResourceCreate, ResourceRead,
-)
-from app.models.resource import Resource
 
 router = APIRouter()
 

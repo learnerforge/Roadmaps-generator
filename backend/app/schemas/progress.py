@@ -1,11 +1,11 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Literal, Optional, List
 from uuid import UUID
 from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NodeProgressUpdate(BaseModel):
-    status: str
+    status: Literal["pending", "in_progress", "done", "skipped"]
 
 
 class DashboardSummary(BaseModel):
@@ -21,12 +21,12 @@ class AIExplainRequest(BaseModel):
 
 class AIWeeklyPlanRequest(BaseModel):
     roadmap_id: UUID
-    hours_available: int = 10
+    hours_available: int = Field(default=10, ge=1, le=168)
 
 
 class AIQuizRequest(BaseModel):
     node_id: UUID
-    count: int = 5
+    count: int = Field(default=5, ge=1, le=20)
 
 
 class AIProjectRequest(BaseModel):
