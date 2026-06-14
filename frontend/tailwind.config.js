@@ -13,13 +13,19 @@ export default {
           3: 'var(--color-bg-3)',
           4: 'var(--color-bg-4)',
         },
+        surface: {
+          DEFAULT: 'var(--color-surface)',
+          hover: 'var(--color-surface-hover)',
+        },
         border: {
           DEFAULT: 'var(--color-border)',
           2: 'var(--color-border-2)',
+          3: 'var(--color-border-3)',
         },
         accent: {
           DEFAULT: 'var(--color-accent)',
           2: 'var(--color-accent-2)',
+          soft: 'var(--color-accent-soft)',
           glow: 'var(--color-accent-glow)',
         },
         green: {
@@ -43,6 +49,10 @@ export default {
           2: 'var(--color-text-2)',
           3: 'var(--color-text-3)',
         },
+        success: 'var(--color-green)',
+        warning: 'var(--color-amber)',
+        error: 'var(--color-red)',
+        info: 'var(--color-blue)',
       },
       fontFamily: {
         head: ['Inter', 'system-ui', 'sans-serif'],

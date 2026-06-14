@@ -5,7 +5,6 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from app.core.config import get_settings
-from app.db.session import init_db
 from app.routes import auth, auth_register, roadmaps, progress, ai, admin, content
 from app.middleware.logging import RequestLoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -28,8 +27,6 @@ logger = logging.getLogger("pathforge")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting PathForge AI backend...")
-    await init_db()
-    logger.info("Database initialized")
     yield
     logger.info("Shutting down...")
 

@@ -1,13 +1,16 @@
 import { useCallback, useMemo, memo, useState, useEffect } from 'react'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, Handle, Position, Panel } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { CATEGORY_COLORS } from '../../lib/constants'
+import { CATEGORY_COLORS, DIFFICULTY_COLORS } from '../../lib/constants'
 
 const TARGET_W = 3000
 const TARGET_H = 4000
 const PAD = 120
+const GRID_COLS = 8
+const GRID_SPACING_X = 320
+const GRID_SPACING_Y = 130
 
-function normalizeNodes(rawNodes, category) {
+function normalizeNodes(rawNodes, edges, category) {
   if (!rawNodes || !rawNodes.length) return []
 
   const xs = rawNodes.map(n => n.position_x ?? 0)
@@ -19,35 +22,59 @@ function normalizeNodes(rawNodes, category) {
   const dataW = maxX - minX || 1
   const dataH = maxY - minY || 1
 
+  // Detect degenerate positions (all zeros) — typically markdown-only roadmaps
+  const allSameX = xs.every(x => x === xs[0])
+  const allSameY = ys.every(y => y === ys[0])
+  const useGrid = allSameX && allSameY && xs[0] === 0 && ys[0] === 0
+
+  // Compute incoming/outgoing edge counts for start/end detection
+  const inCount = {}
+  const outCount = {}
+  if (edges) {
+    for (const e of edges) {
+      const s = String(e.source)
+      const t = String(e.target)
+      outCount[s] = (outCount[s] || 0) + 1
+      inCount[t] = (inCount[t] || 0) + 1
+    }
+  }
+
   const scaleX = (TARGET_W - PAD * 2) / dataW
   const scaleY = (TARGET_H - PAD * 2) / dataH
   const scale = Math.min(scaleX, scaleY)
-
   const usableW = dataW * scale
   const usableH = dataH * scale
   const offsetX = (TARGET_W - usableW) / 2
   const offsetY = (TARGET_H - usableH) / 2
 
-  return rawNodes.map(n => ({
-    id: String(n.id),
-    type: 'graphNode',
-    position: {
-      x: (n.position_x - minX) * scale + offsetX,
-      y: (n.position_y - minY) * scale + offsetY,
-    },
-    data: {
-      label: n.title,
-      difficulty: n.difficulty,
-      roadmapCategory: category || n.category,
-      selected: false,
-    },
-  }))
-}
-
-const DIFFICULTY_COLORS = {
-  beginner: { dot: 'var(--color-green)', text: 'var(--color-green)' },
-  intermediate: { dot: 'var(--color-amber)', text: 'var(--color-amber)' },
-  advanced: { dot: 'var(--color-red)', text: 'var(--color-red)' },
+  return rawNodes.map((n, i) => {
+    const id = String(n.id)
+    let pos
+    if (useGrid) {
+      pos = {
+        x: (i % GRID_COLS) * GRID_SPACING_X + PAD,
+        y: Math.floor(i / GRID_COLS) * GRID_SPACING_Y + PAD * 0.5,
+      }
+    } else {
+      pos = {
+        x: (n.position_x - minX) * scale + offsetX,
+        y: (n.position_y - minY) * scale + offsetY,
+      }
+    }
+    return {
+      id,
+      type: 'graphNode',
+      position: pos,
+      data: {
+        label: n.title,
+        difficulty: n.difficulty,
+        roadmapCategory: category || n.category,
+        selected: false,
+        isRoot: !inCount[id],
+        isLeaf: !outCount[id],
+      },
+    }
+  })
 }
 
 function GraphNode({ data }) {
@@ -55,14 +82,27 @@ function GraphNode({ data }) {
   const isSelected = data.selected
   const dc = DIFFICULTY_COLORS[data.difficulty]
 
+  let accentStyle = {}
+  let badgeText = null
+  if (data.isRoot && !data.isLeaf) {
+    accentStyle = { borderColor: 'var(--color-green)', boxShadow: '0 0 0 1px var(--color-green), 0 0 20px rgba(34,197,94,0.15)' }
+    badgeText = 'START'
+  } else if (data.isLeaf && !data.isRoot) {
+    accentStyle = { borderColor: 'var(--color-accent)', boxShadow: '0 0 0 1px var(--color-accent), 0 0 20px rgba(99,102,241,0.15)' }
+    badgeText = 'END'
+  } else if (data.isRoot && data.isLeaf) {
+    accentStyle = { borderColor: 'var(--color-amber)', boxShadow: '0 0 0 1px var(--color-amber), 0 0 20px rgba(245,158,11,0.15)' }
+    badgeText = 'STANDALONE'
+  }
+
   return (
     <div
-      className="rounded-xl border-2 bg-bg-2 px-4 py-3 shadow-md transition-all duration-150 hover:shadow-lg hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+      className="rounded-xl border-2 bg-surface px-4 py-3 transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
       style={{
-        borderColor: isSelected ? colors.border : 'var(--color-border)',
+        borderColor: isSelected ? colors.border : (accentStyle.borderColor || 'var(--color-border)'),
         boxShadow: isSelected
           ? `0 0 0 2px ${colors.border}, 0 0 28px ${colors.border}44`
-          : '0 2px 8px var(--color-shadow)',
+          : (accentStyle.boxShadow || '0 2px 8px var(--color-shadow)'),
         minWidth: 170,
         maxWidth: 230,
       }}
@@ -71,11 +111,24 @@ function GraphNode({ data }) {
     >
       <Handle type="target" position={Position.Top}
         className="!h-3 !w-3 !border-2 !border-border !bg-bg-3" />
-      <div
-        className="text-sm font-semibold leading-snug text-text"
-        style={{ color: isSelected ? colors.badge : undefined }}
-      >
-        {data.label}
+      <div className="flex items-center gap-2">
+        <div
+          className="text-sm font-semibold leading-snug text-text flex-1"
+          style={{ color: isSelected ? colors.badge : undefined }}
+        >
+          {data.label}
+        </div>
+        {badgeText && (
+          <span
+            className="text-[8px] font-bold uppercase tracking-[0.12em] shrink-0 rounded-md px-1.5 py-0.5"
+            style={{
+              backgroundColor: data.isRoot && !data.isLeaf ? 'var(--color-green-dim)' : data.isLeaf && !data.isRoot ? 'var(--color-accent-glow)' : 'var(--color-amber-dim)',
+              color: accentStyle.borderColor,
+            }}
+          >
+            {badgeText}
+          </span>
+        )}
       </div>
       {data.difficulty && dc && (
         <div className="mt-2 flex items-center gap-1.5">
@@ -99,8 +152,8 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
   const [showMinimap, setShowMinimap] = useState(true)
 
   const initialNodes = useMemo(
-    () => normalizeNodes(rawNodes, category),
-    [rawNodes, category]
+    () => normalizeNodes(rawNodes, rawEdges, category),
+    [rawNodes, rawEdges, category]
   )
 
   const initialEdges = useMemo(() => {
@@ -196,9 +249,9 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
               const c = CATEGORY_COLORS[n.data?.roadmapCategory]
               return c?.border || '#5a5a72'
             }}
-            maskColor="rgba(10,10,15,0.85)"
+            maskColor="var(--color-overlay)"
             style={{
-              background: 'var(--color-bg-2)',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 8,
               width: 110,
@@ -212,7 +265,7 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
           />
         )}
 
-        <Background color="var(--color-border)" gap={28} size={1.5} />
+        <Background color="var(--color-border-2)" gap={28} size={1.5} variant="dots" />
 
         {/* Top-right controls */}
         <Panel position="top-right" className="flex gap-2">
@@ -232,25 +285,25 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
         </Panel>
 
         {/* Bottom-left legend */}
-        <Panel position="bottom-left" className="flex items-center gap-3 rounded-lg border border-border bg-bg-2/90 backdrop-blur-sm px-3 py-2 text-[11px] text-text-3 shadow-md">
+        <Panel position="bottom-left" className="flex items-center gap-3 rounded-lg border border-border bg-surface/90 backdrop-blur-sm px-3 py-2 text-[11px] text-text-3 shadow-md">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: 'var(--color-green)' }} />
-            beginner
+            <span className="text-text-2 font-medium">beginner</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: 'var(--color-amber)' }} />
-            intermediate
+            <span className="text-text-2 font-medium">intermediate</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: 'var(--color-red)' }} />
-            advanced
+            <span className="text-text-2 font-medium">advanced</span>
           </span>
           <span className="mx-1 h-3 w-px bg-border" />
-          <span className="text-text-3/60">scroll to zoom &middot; drag to pan</span>
+          <span className="text-text-3/60 font-mono text-[10px]">scroll to zoom &middot; drag to pan</span>
         </Panel>
 
         {/* Bottom-right stats */}
-        <Panel position="bottom-right" className="rounded-lg border border-border bg-bg-2/90 backdrop-blur-sm px-3 py-1.5 text-xs font-mono text-text-3 shadow-md">
+        <Panel position="bottom-right" className="rounded-lg border border-border bg-surface/90 backdrop-blur-sm px-3 py-1.5 text-xs font-mono text-text-3 shadow-md tabular-nums">
           {initialNodes.length} nodes
           {initialEdges.length > 0 && <span className="ml-2">| {initialEdges.length} connections</span>}
         </Panel>

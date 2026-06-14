@@ -18,6 +18,7 @@ export default function AIExplanation({ nodeId }) {
       const result = await apiPost('/ai/explain-node', { node_id: nodeId })
       setExplanation(result.explanation)
     } catch (err) {
+      console.error('AI explanation failed:', err)
       setExplanation('Failed to generate explanation. Please try again.')
     } finally {
       setLoading(false)

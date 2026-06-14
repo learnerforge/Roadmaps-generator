@@ -51,7 +51,7 @@ export default function LearnPage() {
       dispatch({ type: 'FETCH_START' })
       const [roadmapData, progressData] = await Promise.all([
         apiGet(`/roadmaps/${slug}`, { signal }),
-        apiGet(`/progress/${slug}/progress`, { signal }).catch(() => ({ progress: [] })),
+        apiGet(`/progress/${slug}/progress`, { signal }).catch((err) => { console.error('Progress load failed:', err); return { progress: [] } }),
       ])
       const progMap = {}
       for (const p of progressData.progress || []) {
@@ -99,34 +99,39 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen flex">
-      <aside className="hidden lg:block w-72 border-r border-border bg-bg-2 overflow-y-auto h-[calc(100vh-4rem)] sticky top-16">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-white mb-2">{roadmap?.title}</h2>
+      <aside className="hidden lg:block w-72 border-r border-border bg-surface overflow-y-auto h-[calc(100vh-4rem)] sticky top-16">
+        <div className="p-4 border-b border-border bg-bg-2/50">
+          <h2 className="text-sm font-semibold text-text mb-2 leading-snug">{roadmap?.title}</h2>
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 bg-bg-3 rounded-full overflow-hidden">
-              <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-[10px] font-mono text-text-3">{pct}%</span>
+            <span className="text-[10px] font-mono text-text-3 tabular-nums">{pct}%</span>
           </div>
-          <p className="mt-1 text-[10px] text-text-3">{doneCount}/{nodes.length} completed</p>
+          <p className="mt-1 text-[10px] text-text-3 tabular-nums">{doneCount}/{nodes.length} completed</p>
         </div>
         <div className="p-2">
           {nodes.map((node, i) => {
             const status = progress[node.id] || 'pending'
+            const isSelected = selectedNode?.id === node.id
             return (
               <button
                 key={node.id}
                 onClick={() => handleNodeSelect(node)}
-                className={`w-full text-left rounded-lg border p-3 mb-1.5 text-xs transition-all ${
-                  selectedNode?.id === node.id
-                    ? 'border-accent bg-accent-glow'
+                className={`w-full text-left rounded-lg border p-3 mb-1 text-xs transition-all ${
+                  isSelected
+                    ? 'border-accent bg-accent-glow shadow-sm'
                     : STATUS_COLORS[status]
-                }`}
+                } ${!isSelected ? 'hover:border-border-2 hover:bg-surface-hover' : ''}`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-text-3 w-5">{i + 1}</span>
+                  <span className={`font-mono text-[10px] w-5 tabular-nums ${isSelected ? 'text-accent' : 'text-text-3'}`}>{i + 1}</span>
                   <span className="flex-1 truncate">{node.title}</span>
-                  {status === 'done' && <span className="text-green">done</span>}
+                  {status === 'done' && (
+                    <svg className="h-3.5 w-3.5 shrink-0 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
                 </div>
               </button>
             )
@@ -175,9 +180,14 @@ export default function LearnPage() {
               )}
 
               {selectedNode.why_important && (
-                <div className="mb-6 rounded-xl border border-accent/20 bg-accent-glow p-5">
-                  <h3 className="mb-2 text-xs font-semibold text-accent uppercase tracking-wider">Why it matters</h3>
-                  <p className="text-sm text-text-2">{selectedNode.why_important}</p>
+                <div className="mb-6 rounded-xl border border-accent/20 bg-accent-soft p-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <h3 className="text-xs font-bold text-accent uppercase tracking-wider">Why it matters</h3>
+                  </div>
+                  <p className="text-sm text-text-2 leading-relaxed">{selectedNode.why_important}</p>
                 </div>
               )}
 

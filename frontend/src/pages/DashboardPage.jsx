@@ -17,7 +17,7 @@ export default function DashboardPage() {
       setLoading(true)
       const [summaryData, roadmapsData] = await Promise.all([
         apiGet('/progress/dashboard/summary', { signal }),
-        apiGet('/progress/my-roadmaps', { signal }).catch(() => ({ items: [] })),
+        apiGet('/progress/my-roadmaps', { signal }).catch((err) => { console.error('My roadmaps load failed:', err); return { items: [] } }),
       ])
       setSummary(summaryData)
       setMyRoadmaps(roadmapsData.items || roadmapsData)
@@ -53,17 +53,20 @@ export default function DashboardPage() {
         >
           {summary && (
             <div className="mb-10 grid gap-4 sm:grid-cols-3">
-              <div className="card-glow p-5">
-                <p className="text-xs text-text-3 uppercase tracking-wider">Active Roadmaps</p>
-                <p className="mt-2 text-3xl font-bold text-white">{summary.active_roadmaps || 0}</p>
+              <div className="card-elevated relative overflow-hidden p-5">
+                <div className="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-accent-glow blur-2xl" />
+                <p className="text-xs text-text-3 uppercase tracking-wider font-semibold">Active Roadmaps</p>
+                <p className="mt-2 text-3xl font-bold text-text tabular-nums">{summary.active_roadmaps || 0}</p>
               </div>
-              <div className="card-glow p-5">
-                <p className="text-xs text-text-3 uppercase tracking-wider">Nodes Completed</p>
-                <p className="mt-2 text-3xl font-bold text-white">{summary.total_nodes_completed || 0}</p>
+              <div className="card-elevated relative overflow-hidden p-5">
+                <div className="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-green-dim blur-2xl" />
+                <p className="text-xs text-text-3 uppercase tracking-wider font-semibold">Nodes Completed</p>
+                <p className="mt-2 text-3xl font-bold text-text tabular-nums">{summary.total_nodes_completed || 0}</p>
               </div>
-              <div className="card-glow p-5">
-                <p className="text-xs text-text-3 uppercase tracking-wider">Day Streak</p>
-                <p className="mt-2 text-3xl font-bold text-white">{summary.streak_days || 0}</p>
+              <div className="card-elevated relative overflow-hidden p-5">
+                <div className="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-amber-dim blur-2xl" />
+                <p className="text-xs text-text-3 uppercase tracking-wider font-semibold">Day Streak</p>
+                <p className="mt-2 text-3xl font-bold text-text tabular-nums">{summary.streak_days || 0}</p>
               </div>
             </div>
           )}
@@ -85,7 +88,7 @@ export default function DashboardPage() {
                 {myRoadmaps.map((item) => (
                   <div
                     key={item.roadmap.id}
-                    className="card-glow p-5"
+                    className="card-elevated p-5"
                   >
                     <Link
                       to={`/roadmaps/${item.roadmap.slug}/learn`}
@@ -112,13 +115,13 @@ export default function DashboardPage() {
                     </Link>
                     <div className="mt-3 flex gap-2">
                       <button
-                        onClick={() => apiDownload(`/progress/export/${item.roadmap.slug}?format=json`, `${item.roadmap.slug}_progress.json`)}
+                        onClick={async () => { try { await apiDownload(`/progress/export/${item.roadmap.slug}?format=json`, `${item.roadmap.slug}_progress.json`) } catch (err) { console.error('Export failed:', err) } }}
                         className="btn-ghost flex-1 !px-3 !py-1.5 !text-[10px]"
                       >
                         Export JSON
                       </button>
                       <button
-                        onClick={() => apiDownload(`/progress/export/${item.roadmap.slug}?format=csv`, `${item.roadmap.slug}_progress.csv`)}
+                        onClick={async () => { try { await apiDownload(`/progress/export/${item.roadmap.slug}?format=csv`, `${item.roadmap.slug}_progress.csv`) } catch (err) { console.error('Export failed:', err) } }}
                         className="btn-ghost flex-1 !px-3 !py-1.5 !text-[10px]"
                       >
                         Export CSV

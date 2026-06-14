@@ -55,8 +55,8 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white text-sm font-bold">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white text-sm font-bold transition-transform group-hover:scale-105">
             P
           </div>
           <span className="text-lg font-bold text-text">
@@ -64,16 +64,34 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <div className="hidden sm:flex items-center gap-6">
+        <div className="hidden sm:flex items-center gap-1">
           {visibleLinks.map((link) => (
-            <NavLink key={link.to} to={link.to} className={({ isActive }) => `text-sm transition-colors ${isActive ? 'text-accent font-semibold' : 'text-text-2 hover:text-text'}`}>
-              {link.label}
+            <NavLink
+              key={link.to}
+              to={link.to}
+              className={({ isActive }) =>
+                `relative px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                  isActive
+                    ? 'text-accent bg-accent-soft'
+                    : 'text-text-2 hover:text-text hover:bg-bg-3/50'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {link.label}
+                  {isActive && (
+                    <span className="absolute -bottom-[13px] left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
+                  )}
+                </>
+              )}
             </NavLink>
           ))}
+          <div className="mx-2 w-px h-5 bg-border" />
           <ThemeToggle />
           {user ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-text-3">{user.full_name}</span>
+            <div className="flex items-center gap-3 ml-1">
+              <span className="text-sm text-text-3 font-mono text-[12px]">{user.full_name}</span>
               <button
                 onClick={handleLogout}
                 className="btn-danger !px-3 !py-1.5 !text-xs"
@@ -82,16 +100,16 @@ export default function Navbar() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 ml-1">
               <Link
                 to="/login"
-                className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors"
+                className="btn-ghost !px-3 !py-1.5 !text-xs"
               >
                 Login
               </Link>
               <Link
                 to="/register"
-                className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-2 transition-colors"
+                className="btn-primary !px-4 !py-1.5 !text-xs"
               >
                 Get Started
               </Link>
@@ -112,46 +130,50 @@ export default function Navbar() {
       </div>
 
       {mobileOpen && (
-        <div className="sm:hidden border-t border-border bg-bg px-4 py-4 space-y-3">
+        <div className="sm:hidden border-t border-border bg-bg/95 backdrop-blur-xl px-4 py-4 space-y-2">
           {visibleLinks.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}
               onClick={closeMobile}
-              className={({ isActive }) => `block text-sm transition-colors ${isActive ? 'text-accent font-semibold' : 'text-text-2 hover:text-text'}`}
+              className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-accent-soft text-accent border border-accent/20'
+                  : 'text-text-2 hover:bg-bg-3/50 hover:text-text border border-transparent'
+              }`}
             >
               {link.label}
             </NavLink>
           ))}
           {user ? (
-            <div className="pt-2 border-t border-border">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm text-text-3">{user.full_name}</span>
+            <div className="pt-3 mt-3 border-t border-border space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-sm text-text-3 font-mono text-[12px]">{user.full_name}</span>
                 <ThemeToggle />
               </div>
               <button
                 onClick={handleLogout}
-                className="btn-danger w-full !px-3 !py-1.5 !text-xs"
+                className="btn-danger w-full !px-3 !py-2 !text-xs"
               >
                 Logout
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-2 pt-2 border-t border-border">
+            <div className="flex flex-col gap-2 pt-3 mt-3 border-t border-border">
               <div className="flex justify-end mb-1">
                 <ThemeToggle />
               </div>
               <Link
                 to="/login"
                 onClick={closeMobile}
-                className="block rounded-lg border border-border px-3 py-2 text-sm text-text-2 hover:border-accent hover:text-accent transition-colors text-center"
+                className="btn-ghost w-full !py-2 text-center"
               >
                 Login
               </Link>
               <Link
                 to="/register"
                 onClick={closeMobile}
-                className="block rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-2 transition-colors text-center"
+                className="btn-primary w-full !py-2 text-center"
               >
                 Get Started
               </Link>

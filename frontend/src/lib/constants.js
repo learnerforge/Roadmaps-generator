@@ -32,6 +32,12 @@ export const STATUS_COLORS = {
   bookmarked: 'border-amber bg-amber-dim text-amber',
 }
 
+export const DIFFICULTY_COLORS = {
+  beginner:     { dot: 'var(--color-green)',  text: 'var(--color-green)' },
+  intermediate: { dot: 'var(--color-amber)',  text: 'var(--color-amber)' },
+  advanced:     { dot: 'var(--color-red)',    text: 'var(--color-red)' },
+}
+
 export const EXPORT_FORMATS = [
   { format: 'json', label: 'Export JSON', ext: 'json' },
   { format: 'csv', label: 'Export CSV', ext: 'csv' },

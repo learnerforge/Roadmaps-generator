@@ -13,6 +13,7 @@ from app.db.session import AsyncSessionLocal, init_db
 from app.models.roadmap import Roadmap, RoadmapNode, NodeDependency
 from app.models.user import Profile
 from sqlalchemy import select
+from why_important_templates import generate_why_important
 
 REPO = "nilbuild/developer-roadmap"
 BRANCH = "master"
@@ -274,6 +275,15 @@ async def seed():
                 # Fallback: try markdown content from pre-fetched tree
                 md_topics = parse_markdown_topics(content_map.get(slug, []))
                 if md_topics:
+                    # Generate grid positions for markdown nodes (no spatial data available)
+                    md_cols = 7
+                    md_spacing_x = 280
+                    md_spacing_y = 130
+                    for i, t in enumerate(md_topics):
+                        t["position"] = {
+                            "x": (i % md_cols) * md_spacing_x,
+                            "y": (i // md_cols) * md_spacing_y,
+                        }
                     topic_nodes = md_topics
                     is_markdown = True
                     print(f"  Parsed {len(topic_nodes)} topics from markdown for {slug}")
@@ -311,7 +321,7 @@ async def seed():
                     node_type="topic",
                     title=label,
                     description=description,
-                    why_important=None,
+                    why_important=generate_why_important(label, "software development", description),
                     category=None,
                     position_x=position.get("x", 0),
                     position_y=position.get("y", 0),

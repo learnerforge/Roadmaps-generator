@@ -13,32 +13,33 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border">
+      <section className="section-spotlight relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-accent-glow via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,106,247,0.08),transparent_60%)] pointer-events-none" />
         <div className="mx-auto max-w-5xl px-4 py-24 text-center sm:py-32 relative">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-glow px-4 py-1.5 text-xs font-mono text-accent">
+          <div className="badge badge-accent mb-6 mx-auto w-fit text-xs">
             <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
             AI Career Roadmaps
           </div>
-          <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-white sm:text-6xl">
+          <h1 className="text-display mb-6 text-white">
             Navigate your tech career
             <br />
-            with <span className="text-accent">AI-powered clarity</span>
+            with <span className="text-gradient">AI-powered clarity</span>
           </h1>
-          <p className="mb-10 text-lg text-text-2 max-w-2xl mx-auto">
+          <p className="mb-10 text-lg text-text-2 max-w-2xl mx-auto leading-relaxed">
             Personalized learning roadmaps for developers. AI explains every concept,
-            generates quizzes, suggests projects, and tracks your progress — step by step.
+            generates quizzes, suggests projects, and tracks your progress &mdash; step by step.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/roadmaps"
-              className="rounded-xl bg-accent px-8 py-3 text-sm font-semibold text-white hover:bg-accent-2 transition-all shadow-lg shadow-accent/20"
+              className="btn-primary !px-8 !py-3 text-sm"
             >
               Explore Roadmaps
             </Link>
             <Link
               to="/register"
-              className="rounded-xl border border-border px-8 py-3 text-sm font-medium text-text-2 hover:border-accent hover:text-accent transition-all"
+              className="btn-ghost !px-8 !py-3 text-sm"
             >
               Start Free
             </Link>
@@ -47,17 +48,17 @@ export default function HomePage() {
       </section>
 
       {/* Features */}
-      <section className="mx-auto max-w-6xl px-4 py-20">
-        <h2 className="mb-12 text-center text-2xl font-bold text-white">
-          Why PathForge is different
+      <section className="section-spotlight mx-auto max-w-6xl px-4 py-20">
+        <h2 className="text-display-sm mb-12 text-center">
+          Why PathForge is <span className="text-gradient">different</span>
         </h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              className="card-glow p-6"
+              className="card-elevated p-6"
             >
-              <h3 className="mb-2 text-sm font-semibold text-white">{f.title}</h3>
+              <h3 className="mb-2 text-sm font-semibold text-text">{f.title}</h3>
               <p className="text-sm text-text-2 leading-relaxed">{f.desc}</p>
             </div>
           ))}
@@ -65,17 +66,18 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="border-t border-border bg-bg-2">
-        <div className="mx-auto max-w-4xl px-4 py-20 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-white">
-            Ready to start learning?
+      <section className="relative border-t border-border bg-bg-2 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,106,247,0.06),transparent_60%)] pointer-events-none" />
+        <div className="section-spotlight mx-auto max-w-4xl px-4 py-20 text-center">
+          <h2 className="text-display-sm mb-4">
+            Ready to start <span className="text-gradient">learning?</span>
           </h2>
-          <p className="mb-8 text-text-2">
+          <p className="mb-8 text-text-2 text-base">
             Choose a roadmap, set your pace, and let AI guide you step by step.
           </p>
           <Link
             to="/roadmaps"
-            className="inline-flex rounded-xl bg-accent px-8 py-3 text-sm font-semibold text-white hover:bg-accent-2 transition-all shadow-lg shadow-accent/20"
+            className="btn-primary !px-10 !py-3"
           >
             Browse All Roadmaps
           </Link>

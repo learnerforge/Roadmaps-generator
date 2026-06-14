@@ -13,6 +13,7 @@ export default function ResourceList({ nodeId }) {
       setResources(data.resources || [])
     } catch (err) {
       if (err.name === 'AbortError') return
+      console.error('Failed to load resources:', err)
       setResources([])
     } finally {
       setLoading(false)

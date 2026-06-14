@@ -125,15 +125,15 @@ export default function RoadmapsPage() {
         </div>
 
         {/* Stats Bar */}
-        <div className="mb-6 grid grid-cols-3 gap-3 rounded-xl border border-border bg-bg-2 p-4 sm:mb-8">
+        <div className="mb-6 grid grid-cols-3 gap-3 rounded-xl border border-border bg-surface p-4 sm:mb-8 shadow-sm">
           {[
             { label: 'Roadmaps', value: stats.roadmaps },
             { label: 'Topics', value: stats.nodes.toLocaleString() },
             { label: 'Categories', value: stats.categories },
-          ].map((s) => (
-            <div key={s.label} className="text-center">
+          ].map((s, i) => (
+            <div key={s.label} className={`text-center ${i < 2 ? 'border-r border-border' : ''}`}>
               <div className="text-lg font-bold text-text sm:text-xl">{s.value}</div>
-              <div className="text-[10px] font-medium uppercase tracking-wider text-text-3 sm:text-xs">
+              <div className="text-[10px] font-medium uppercase tracking-widest text-text-3 sm:text-xs">
                 {s.label}
               </div>
             </div>
@@ -190,7 +190,7 @@ export default function RoadmapsPage() {
                     </svg>
                   )}
                   <span>{cat === 'absolute-beginners' ? 'Beginners' : cat.replace('-', ' ')}</span>
-                  <span className={`ml-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-mono ${
+                  <span className={`ml-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-mono tabular-nums ${
                     isActive
                       ? 'bg-accent/20 text-accent'
                       : 'bg-bg-3 text-text-3'
@@ -240,7 +240,7 @@ export default function RoadmapsPage() {
                 <Link
                   key={rm.id}
                   to={`/roadmaps/${rm.slug}`}
-                  className="card-glow group block p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                  className="card-elevated group block p-5"
                   style={{
                     animation: `slideUp 0.4s ease-out ${index * 0.04}s both`,
                     '--card-accent': colors?.border || 'var(--color-accent)',
@@ -262,7 +262,7 @@ export default function RoadmapsPage() {
                       )}
                       {rm.category}
                     </span>
-                    <span className="flex items-center gap-1 text-[10px] font-mono text-text-3">
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-text-3 tabular-nums">
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
@@ -270,7 +270,7 @@ export default function RoadmapsPage() {
                     </span>
                   </div>
 
-                  <h3 className="mb-1.5 text-base font-semibold text-text transition-colors group-hover:text-accent">
+                  <h3 className="mb-1.5 text-base font-semibold text-text transition-colors group-hover:text-accent leading-snug">
                     {rm.title}
                   </h3>
 
@@ -286,7 +286,7 @@ export default function RoadmapsPage() {
                       </span>
                     </div>
                     {rm.estimated_hours && (
-                      <div className="flex items-center gap-1 text-[10px] text-text-3">
+                      <div className="flex items-center gap-1 text-[10px] text-text-3 tabular-nums">
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
