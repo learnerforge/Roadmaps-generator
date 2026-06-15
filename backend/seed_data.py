@@ -3,7 +3,6 @@ import sys
 import os
 import json
 import logging
-from collections import deque
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 logger = logging.getLogger(__name__)
@@ -335,89 +334,20 @@ async def seed():
                     node_map[source_id] = db_node.id
                 total_nodes += 1
 
-            # ── Pass 1: Edge contraction through structural nodes ──
-            all_node_ids = {n.get("id") for n in nodes_data if n.get("id")}
-            topic_ids = {n.get("id") for n in topic_nodes if n.get("id")}
-
-            adj = {}
-            for edge in edges_data:
-                src = edge.get("source")
-                tgt = edge.get("target")
-                if src and tgt and src in all_node_ids and tgt in all_node_ids and src != tgt:
-                    adj.setdefault(src, []).append(tgt)
-
-            dep_count = 0
-            created = set()
-
-            for src_id in topic_ids:
-                if src_id not in node_map:
-                    continue
-                visited = {src_id}
-                queue = deque(adj.get(src_id, []))
-                while queue:
-                    cur = queue.popleft()
-                    if cur in visited or cur not in all_node_ids:
-                        continue
-                    visited.add(cur)
-                    if cur in topic_ids and cur != src_id and cur in node_map:
-                        pair = (node_map[cur], node_map[src_id])
-                        if pair not in created:
-                            created.add(pair)
-                            db.add(NodeDependency(node_id=node_map[cur], depends_on_node_id=node_map[src_id]))
-                            dep_count += 1
-                            total_deps += 1
-                        continue
-                    for nxt in adj.get(cur, []):
-                        if nxt not in visited:
-                            queue.append(nxt)
-
-            # ── Pass 2: Spatial edge inference from node positions ──
-            COL_THRESHOLD = 120
-            Y_GAP_THRESHOLD = 160
-
-            topic_positions = {}
-            for n in nodes_data:
-                if n.get("type") in ("topic", "subtopic") and n.get("id"):
-                    pos = n.get("position", {})
-                    topic_positions[n["id"]] = (pos.get("x", 0), pos.get("y", 0))
-
-            cols = {}
-            for tid, (x, y) in topic_positions.items():
-                if tid not in node_map:
-                    continue
-                matched = False
-                for cx in list(cols.keys()):
-                    if abs(x - cx) < COL_THRESHOLD:
-                        cols[cx].append((tid, y))
-                        matched = True
-                        break
-                if not matched:
-                    cols[x] = [(tid, y)]
-
-            for cx in sorted(cols.keys()):
-                items = sorted(cols[cx], key=lambda t: t[1])
-                for i in range(len(items) - 1):
-                    tid_a, y_a = items[i]
-                    tid_b, y_b = items[i + 1]
-                    gap = y_b - y_a
-                    if 0 < gap < Y_GAP_THRESHOLD:
-                        pair = (node_map[tid_b], node_map[tid_a])
-                        if pair not in created:
-                            created.add(pair)
-                            db.add(NodeDependency(node_id=node_map[tid_b], depends_on_node_id=node_map[tid_a]))
-                            dep_count += 1
-                            total_deps += 1
-
-            # ── Pass 3: order_index chain fill — ensures every node connects ──
+            # ── Single pass: order_index chain — each node gets exactly 1 input, 1 output ──
+            # This guarantees a clean linear path (indegree=1, outdegree=1 for all except first/last)
+            # Each edge gets a sequential order_index (1, 2, 3, ...) within its roadmap
             order_ids = [n.get("id") for n in topic_nodes if n.get("id") in node_map]
+            dep_count = 0
             for i in range(len(order_ids) - 1):
                 tid_a, tid_b = order_ids[i], order_ids[i + 1]
-                pair = (node_map[tid_b], node_map[tid_a])
-                if pair not in created:
-                    created.add(pair)
-                    db.add(NodeDependency(node_id=node_map[tid_b], depends_on_node_id=node_map[tid_a]))
-                    dep_count += 1
-                    total_deps += 1
+                db.add(NodeDependency(
+                    node_id=node_map[tid_b],
+                    depends_on_node_id=node_map[tid_a],
+                    order_index=i + 1,
+                ))
+                dep_count += 1
+                total_deps += 1
 
             total_roadmaps += 1
             print(f"  Seeded: {meta['title']} ({slug}) — {len(topic_nodes)} nodes, {dep_count} dependencies")

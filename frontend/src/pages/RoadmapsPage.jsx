@@ -125,15 +125,15 @@ export default function RoadmapsPage() {
         </div>
 
         {/* Stats Bar */}
-        <div className="mb-6 grid grid-cols-3 gap-3 rounded-xl border border-border bg-surface p-4 sm:mb-8 shadow-sm">
+        <div className="mb-6 flex rounded-xl border border-border bg-surface p-3 sm:p-4 sm:mb-8 shadow-sm">
           {[
             { label: 'Roadmaps', value: stats.roadmaps },
             { label: 'Topics', value: stats.nodes.toLocaleString() },
             { label: 'Categories', value: stats.categories },
           ].map((s, i) => (
-            <div key={s.label} className={`text-center ${i < 2 ? 'border-r border-border' : ''}`}>
-              <div className="text-lg font-bold text-text sm:text-xl">{s.value}</div>
-              <div className="text-[10px] font-medium uppercase tracking-widest text-text-3 sm:text-xs">
+            <div key={s.label} className={`flex-1 text-center ${i < 2 ? 'border-r border-border' : ''}`}>
+              <div className="text-base sm:text-lg font-bold text-text">{s.value}</div>
+              <div className="text-[9px] sm:text-xs font-medium uppercase tracking-widest text-text-3">
                 {s.label}
               </div>
             </div>

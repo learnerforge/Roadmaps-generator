@@ -299,6 +299,34 @@ a:focus-visible,
     to { transform: translateX(0); opacity: 1; }
   }
 
+  .page-enter {
+    animation: fadeSlideUp 0.35s ease-out;
+  }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: 0;
+    z-index: 9999;
+    padding: 0.5rem 1rem;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 0 0 0.5rem 0;
+    transition: top 0.15s;
+  }
+  .skip-link:focus {
+    top: 0;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   .text-display {
     font-size: clamp(2rem, 4vw, 3rem);
     font-weight: 800;

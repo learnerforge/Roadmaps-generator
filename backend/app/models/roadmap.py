@@ -48,3 +48,4 @@ class NodeDependency(Base):
 
     node_id = Column(UUID(as_uuid=True), ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), primary_key=True)
     depends_on_node_id = Column(UUID(as_uuid=True), ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), primary_key=True)
+    order_index = Column(Integer, nullable=False, default=0)

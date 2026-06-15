@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback, useMemo } from 'react'
+import { useReducer, useEffect, useCallback, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { apiGet, apiPatch } from '../lib/api'
 import { STATUS_COLORS } from '../lib/constants'
@@ -44,6 +44,7 @@ function reducer(state, action) {
 export default function LearnPage() {
   const { slug } = useParams()
   const [state, dispatch] = useReducer(reducer, initialState)
+  const [showTopics, setShowTopics] = useState(false)
   const { roadmap, nodes, progress, selectedNode, loading, error } = state
 
   const loadData = useCallback(async (signal) => {
@@ -99,6 +100,79 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen flex">
+      {/* Mobile sidebar button */}
+      {nodes.length > 0 && (
+        <button
+          onClick={() => setShowTopics(true)}
+          className="lg:hidden fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-xl border border-accent/30 bg-accent px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-accent/20"
+          aria-label="Show topic list"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          Topics
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/20 text-[9px] font-mono">{nodes.length}</span>
+        </button>
+      )}
+
+      {/* Mobile sidebar drawer */}
+      {showTopics && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowTopics(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-surface border-r border-border flex flex-col shadow-2xl animate-[fadeSlideUp_0.2s_ease-out]">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-bg-2/50">
+              <h2 className="text-sm font-semibold text-text leading-snug">{roadmap?.title}</h2>
+              <button
+                onClick={() => setShowTopics(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-3 hover:text-text hover:bg-bg-3 transition-colors"
+                aria-label="Close topic list"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-3 border-b border-border bg-bg-2/30">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-bg-3 rounded-full overflow-hidden">
+                  <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-[10px] font-mono text-text-3 tabular-nums">{pct}%</span>
+              </div>
+              <p className="mt-1 text-[10px] text-text-3 tabular-nums">{doneCount}/{nodes.length} completed</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {nodes.map((node, i) => {
+                const status = progress[node.id] || 'pending'
+                const isSelected = selectedNode?.id === node.id
+                return (
+                  <button
+                    key={node.id}
+                    onClick={() => { handleNodeSelect(node); setShowTopics(false) }}
+                    className={`w-full text-left rounded-lg border p-3 mb-1 text-xs transition-all ${
+                      isSelected
+                        ? 'border-accent bg-accent-glow shadow-sm'
+                        : STATUS_COLORS[status]
+                    } ${!isSelected ? 'hover:border-border-2 hover:bg-surface-hover' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono text-[10px] w-5 tabular-nums ${isSelected ? 'text-accent' : 'text-text-3'}`}>{i + 1}</span>
+                      <span className="flex-1 truncate">{node.title}</span>
+                      {status === 'done' && (
+                        <svg className="h-3.5 w-3.5 shrink-0 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
       <aside className="hidden lg:block w-72 border-r border-border bg-surface overflow-y-auto h-[calc(100vh-4rem)] sticky top-16">
         <div className="p-4 border-b border-border bg-bg-2/50">
           <h2 className="text-sm font-semibold text-text mb-2 leading-snug">{roadmap?.title}</h2>
@@ -139,7 +213,7 @@ export default function LearnPage() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 p-6 lg:p-10">
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-10">
         <AsyncContent
           loading={loading}
           error={error && !roadmap ? error : null}
@@ -149,14 +223,14 @@ export default function LearnPage() {
         >
           {selectedNode ? (
             <div className="max-w-3xl">
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h1 className="text-xl font-bold text-white">{selectedNode.title}</h1>
+              <div className="mb-4 sm:mb-6 flex flex-wrap items-start gap-3 sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-xl font-bold text-white break-words">{selectedNode.title}</h1>
                   {selectedNode.category && (
                     <span className="text-xs text-text-3">{selectedNode.category}</span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {STATUS_OPTIONS.map((s) => (
                     <button
                       key={s}

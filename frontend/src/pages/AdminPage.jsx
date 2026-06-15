@@ -81,11 +81,11 @@ export default function AdminPage() {
           )}
 
           {tab === 'users' && (
-            <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-sm">
+            <div className="rounded-xl border border-border bg-surface overflow-x-auto shadow-sm">
               {users.length === 0 ? (
                 <div className="p-8 text-center text-text-3">No users found.</div>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[500px]">
                   <thead>
                     <tr className="border-b border-border bg-bg-3/80">
                       <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-text-3">Name</th>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, memo, useState, useEffect } from 'react'
+import { useCallback, useMemo, memo, useState, useEffect, useRef } from 'react'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, Handle, Position, Panel } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { CATEGORY_COLORS, DIFFICULTY_COLORS } from '../../lib/constants'
@@ -150,6 +150,10 @@ const GraphNodeMemo = memo(GraphNode)
 
 export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, category }) {
   const [showMinimap, setShowMinimap] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [rfInstance, setRfInstance] = useState(null)
+  const searchInputRef = useRef(null)
 
   const initialNodes = useMemo(
     () => normalizeNodes(rawNodes, rawEdges, category),
@@ -178,6 +182,7 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
 
   useEffect(() => {
     setNodes(initialNodes)
+    setSearchQuery('')
   }, [initialNodes, setNodes])
 
   useEffect(() => {
@@ -209,10 +214,50 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
     )
   }, [setNodes, setEdges])
 
+  // Search & filter
+  const filteredNodes = useMemo(() => {
+    if (!searchQuery.trim()) return nodes
+    const q = searchQuery.trim().toLowerCase()
+    const matchIds = new Set()
+    for (const n of initialNodes) {
+      if (n.data?.label?.toLowerCase().includes(q)) matchIds.add(n.id)
+    }
+    return nodes.map(n => {
+      const match = matchIds.has(n.id)
+      return {
+        ...n,
+        hidden: !match,
+        data: { ...n.data, selected: n.data.selected },
+      }
+    })
+  }, [nodes, searchQuery, initialNodes])
+
+  const onFitView = useCallback(() => {
+    rfInstance?.fitView({ padding: isLarge ? 0.3 : 0.15, duration: 400 })
+  }, [rfInstance, isLarge])
+
+  const onSearchKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') {
+      setSearchQuery('')
+      searchInputRef.current?.blur()
+    }
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const match = initialNodes.find(n => n.data?.label?.toLowerCase().includes(q))
+      if (match && rfInstance) {
+        rfInstance.setCenter(match.position.x, match.position.y, { duration: 400, zoom: 1.5 })
+      }
+    }
+  }, [searchQuery, initialNodes, rfInstance])
+
+  const onMoveEnd = useCallback(() => {
+    if (rfInstance) setZoomLevel(rfInstance.getZoom())
+  }, [rfInstance])
+
   return (
     <div className="relative h-full w-full" style={{ minHeight: 0 }}>
       <ReactFlow
-        nodes={nodes}
+        nodes={filteredNodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -237,6 +282,8 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
         selectNodesOnDrag={false}
         nodesFocusable={true}
         elevateNodesOnSelect={false}
+        onMoveEnd={onMoveEnd}
+        onInit={setRfInstance}
       >
         <Controls
           className="!border-border !bg-bg-2 !rounded-lg !shadow-lg [&_.react-flow__controls-button]:!border-border [&_.react-flow__controls-button]:!bg-bg-3 [&_.react-flow__controls-button]:!text-text-2 [&_.react-flow__controls-button]:!hover:bg-bg-4 [&_.react-flow__controls-button]:!w-7 [&_.react-flow__controls-button]:!h-7"
@@ -267,12 +314,58 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
 
         <Background color="var(--color-border-2)" gap={28} size={1.5} variant="dots" />
 
-        {/* Top-right controls */}
-        <Panel position="top-right" className="flex gap-2">
+        {/* Top-center search */}
+        <Panel position="top-center" className="w-full max-w-xs pointer-events-none">
+          <div className="pointer-events-auto relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search topics..."
+              aria-label="Search graph nodes"
+              className="w-full rounded-lg border border-border bg-bg-2/90 backdrop-blur-sm pl-9 pr-3 py-2 text-xs text-text placeholder-text-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent transition-colors shadow-md"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); searchInputRef.current?.focus() }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full text-text-3 hover:text-text transition-colors"
+                aria-label="Clear search"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            {searchQuery.trim() && (
+              <span className="absolute -bottom-4 left-0 text-[10px] text-text-3 font-mono">
+                Enter to center &middot; Esc to clear
+              </span>
+            )}
+          </div>
+        </Panel>
+
+        {/* Top-right controls group */}
+        <Panel position="top-right" className="flex gap-1.5">
+          <button
+            onClick={onFitView}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-2 text-text-2 hover:border-accent hover:text-accent transition-colors shadow-md"
+            aria-label="Fit view to all nodes"
+            title="Fit view"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+          </button>
           <button
             onClick={() => setShowMinimap(p => !p)}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-2 text-text-2 hover:border-accent hover:text-accent transition-colors shadow-md"
             aria-label={showMinimap ? 'Hide minimap' : 'Show minimap'}
+            title={showMinimap ? 'Hide minimap' : 'Show minimap'}
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               {showMinimap ? (
@@ -302,10 +395,12 @@ export default memo(function RoadmapGraph({ nodes: rawNodes, edges: rawEdges, ca
           <span className="text-text-3/60 font-mono text-[10px]">scroll to zoom &middot; drag to pan</span>
         </Panel>
 
-        {/* Bottom-right stats */}
-        <Panel position="bottom-right" className="rounded-lg border border-border bg-surface/90 backdrop-blur-sm px-3 py-1.5 text-xs font-mono text-text-3 shadow-md tabular-nums">
-          {initialNodes.length} nodes
-          {initialEdges.length > 0 && <span className="ml-2">| {initialEdges.length} connections</span>}
+        {/* Bottom-right stats + zoom */}
+        <Panel position="bottom-right" className="flex items-center gap-2 rounded-lg border border-border bg-surface/90 backdrop-blur-sm px-3 py-1.5 text-xs font-mono text-text-3 shadow-md tabular-nums">
+          <span>{initialNodes.length} nodes</span>
+          {initialEdges.length > 0 && <span className="ml-1">| {initialEdges.length} connections</span>}
+          <span className="mx-1 h-3 w-px bg-border" />
+          <span className="text-[10px]">{Math.round(zoomLevel * 100)}%</span>
         </Panel>
       </ReactFlow>
     </div>

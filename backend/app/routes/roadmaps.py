@@ -264,6 +264,7 @@ async def get_roadmap(slug: str, db: AsyncSession = Depends(get_db)):
             "id": f"{dep.depends_on_node_id}_{dep.node_id}",
             "source": str(dep.depends_on_node_id),
             "target": str(dep.node_id),
+            "order_index": dep.order_index,
         }
         for dep in edges_result.scalars().all()
         if str(dep.depends_on_node_id) in nodes_map
