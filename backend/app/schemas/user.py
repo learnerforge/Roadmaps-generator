@@ -15,27 +15,6 @@ class UserLogin(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: "ProfileRead"
-
-
-class ProfileUpdate(BaseModel):
-    full_name: Optional[str] = None
-    bio: Optional[str] = None
-    current_role: Optional[str] = None
-    target_role: Optional[str] = None
-    hours_per_week: Optional[int] = None
-    experience_level: Optional[str] = None
-    avatar_url: Optional[str] = None
-
-
-class SocialLogin(BaseModel):
-    provider: str = Field(..., pattern="^(google|github)$")
-    token: str
-
-
 class ProfileRead(BaseModel):
     id: UUID
     email: str
@@ -52,3 +31,24 @@ class ProfileRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: ProfileRead
+
+
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    bio: Optional[str] = None
+    current_role: Optional[str] = None
+    target_role: Optional[str] = None
+    hours_per_week: Optional[int] = None
+    experience_level: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class SocialLogin(BaseModel):
+    provider: str = Field(..., pattern="^(google|github)$")
+    token: str
