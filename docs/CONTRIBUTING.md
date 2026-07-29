@@ -1,5 +1,9 @@
 # Contributing to PathForge AI
 
+## Code of Conduct
+
+This project follows a standard Code of Conduct. By participating, you agree to maintain a respectful, inclusive environment. Report unacceptable behavior to the maintainers.
+
 ## Dev Environment Setup
 
 ### Prerequisites
@@ -86,31 +90,13 @@ npm run lint
 npm run format
 ```
 
+## Testing
+
+Tests use pytest. Run `cd backend && pytest` for backend tests. Frontend tests use Vitest: `cd frontend && npx vitest run`. Add tests for any new functionality.
+
 ## Building for Production
 
-### Backend
-
-The backend runs as a standard FastAPI app. Build a Docker image for deployment:
-
-```bash
-cd backend
-docker build -t pathforge-backend .
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm run build
-```
-
-Output is written to `frontend/dist/`. Serve it with any static file server or the Nginx container (see `frontend/Dockerfile`).
-
-### Full Stack (Docker)
-
-```bash
-docker-compose up --build
-```
+See [DEPLOYMENT.md](DEPLOYMENT.md) for build and deployment instructions.
 
 ## PR Workflow
 
@@ -147,3 +133,11 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 - `refactor:` — code change that neither fixes a bug nor adds a feature
 - `test:` — adding or updating tests
 - `chore:` — build process, CI, tooling
+
+## Getting Help
+
+If you have questions or need help, open a GitHub Discussion or file an issue.
+
+## Good First Issues
+
+Check out issues labeled `good-first-issue` or `help-wanted` on GitHub to find tasks that are great for newcomers.

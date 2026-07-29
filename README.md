@@ -1,21 +1,43 @@
+![License](https://img.shields.io/badge/license-MIT-blue) ![Python](https://img.shields.io/badge/python-3.11-blue) ![Node](https://img.shields.io/badge/node-20-green)
+
 # PathForge AI — AI-Powered Career Roadmap Platform
 
-Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,531 topics, 9,444 dependency edges — 0 isolated nodes), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,531 topics, 9,444 dependency edges), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+
+**Why PathForge?** Most roadmaps are static images or lists — you cannot track progress, get AI help on a specific topic, or see how concepts connect. PathForge turns any roadmap into a living, interactive, AI-augmented experience where you can mark nodes as complete, take topic quizzes, get personalised project ideas, and receive a weekly study plan tailored to your pace and completed topics. Whether you are a beginner following the Frontend roadmap or an engineer levelling up in System Design, PathForge adapts to your learning journey.
+
+<!-- TODO: Add screenshot or GIF of the interactive node graph -->
+
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Roadmap Data Sources](#roadmap-data-sources)
+- [AI Prompts](#ai-prompts)
+- [API Reference](#api-reference)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [FAQ](#faq)
+- [Future Work](#future-work)
+- [License](#license)
 
 ## Features
 
-- **87 Role & Skill Roadmaps** (9,531 topics, 9,444 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
-- **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node
-- **Adaptive Quizzes** — Generate multiple-choice questions per topic to test understanding
-- **Project Suggestions** — Get coding project ideas based on completed topics
-- **Weekly Learning Plans** — AI generates a 7-day study schedule based on your pace
-- **Progress Tracking** — Mark nodes complete/in-progress/skipped, track completion %, dashboard with streaks
-- **User Notes & Bookmarks** — Save personal notes per node, bookmark topics for later
-- **Node Dependencies** — Prerequisite and follow-up topic graph
+- **87 Role & Skill Roadmaps** (9,531 topics, 9,444 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh via its GitHub repository
+- **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node in the `ai_explanations` table so subsequent requests return instantly
+- **Adaptive Quizzes** — Generate multiple-choice questions per topic with explanations for each answer to reinforce learning
+- **Project Suggestions** — Get coding project ideas based on completed topics, at beginner, intermediate, and advanced levels
+- **Weekly Learning Plans** — AI generates a 7-day study schedule based on your pace (hours per week) and completed nodes
+- **Progress Tracking** — Mark nodes complete/in-progress/skipped, track completion % per roadmap, dashboard with streaks and stats
+- **User Notes & Bookmarks** — Save personal notes per node, bookmark topics for later reference
+- **Node Dependencies** — Prerequisite and follow-up topic graph so you always know what to learn next
 - **Interactive Node Graph** — React Flow graph visualisation with zoom/pan, minimap, and click-to-highlight connections
-- **User Auth** — Email/password + Google/GitHub OAuth with JWT + bcrypt, race-condition safe
-- **Admin Dashboard** — Platform stats, user management, feedback moderation
+- **User Auth** — Email/password + Google/GitHub OAuth with JWT + bcrypt, race-condition safe with unique constraint on email
+- **Admin Dashboard** — Platform stats, user management, feedback moderation with role-based access (user, admin, super_admin)
 - **Community-Driven UI** — Button, card, toast, and spinner styles inspired by [uiverse.io](https://uiverse.io) community designs, with animated hover effects and glassmorphism
+- **Responsive Design** — Mobile-friendly layout with dark mode support and accessible colour contrast throughout the UI
 
 ## Tech Stack
 
@@ -28,7 +50,88 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 | Auth        | JWT (HS256) + bcrypt                         |
 | Container   | Docker + docker-compose                      |
 
+All async database operations use SQLAlchemy 2.0's async session with asyncpg driver. FastAPI async route handlers ensure non-blocking I/O across the stack. Alembic handles database migrations with an auto-generated version history in `backend/alembic/versions/`.
+
+## Quick Start
+
+### Docker (30 seconds)
+
+```bash
+docker-compose up --build
+# In another terminal, seed the database:
+docker exec -it pathforge-backend-1 python -m seed_data
+```
+
+Then open http://localhost:5173. The Docker setup starts three services: `postgres` (PostgreSQL 16), `backend` (FastAPI with hot-reload on port 8000), and `frontend` (Vite dev server on port 5173). Make sure `.env` is configured before running — the Docker Compose setup reads from the same `.env` file as the manual setup. The compose configuration is designed for local development; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production adjustments (reverse proxy, SSL, environment hardening).
+
+The first build may take a few minutes as it installs Python and Node dependencies. Subsequent starts use Docker layer caching and are nearly instant.
+
+### Manual Setup
+
+#### Prerequisites
+
+| Tool       | Version   |
+|------------|-----------|
+| Python     | 3.11+     |
+| Node.js    | 20+       |
+| PostgreSQL | 16+       |
+| npm        | 9+ (ships with Node 20) |
+
+#### Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+| Variable           | Required | Default                                               | Description                      |
+|--------------------|----------|-------------------------------------------------------|----------------------------------|
+| `DATABASE_URL`     | Yes      | `postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge` | PostgreSQL connection string     |
+| `JWT_SECRET`       | Yes      | *(empty)*                                             | Secret for signing JWT tokens (min 32 chars) |
+| `GEMINI_API_KEY`   | No       | *(empty)*                                             | Google Gemini API key (primary)  |
+| `OPENAI_API_KEY`   | No       | *(empty)*                                             | OpenAI API key (fallback)        |
+| `CORS_ORIGINS`     | No       | `["http://localhost:5173","http://localhost:3000"]`   | Allowed CORS origins             |
+
+> At least one of `GEMINI_API_KEY` or `OPENAI_API_KEY` must be set for AI features to work. The seed script populates the database with 87 roadmaps, 9,531 topics, and 9,444 dependency edges from roadmap.sh. Run it once after creating the database.
+
+#### Backend
+
+The backend is a FastAPI application using SQLAlchemy 2.0 async with PostgreSQL. Start by setting up the Python environment:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # macOS / Linux
+cd backend
+pip install -r requirements.txt
+copy .env.example .env        # Windows
+# Edit .env — set DATABASE_URL, JWT_SECRET, and at least one AI key
+createdb pathforge
+python -m seed_data
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Frontend
+
+The frontend is a React 18 SPA built with Vite 6 and styled with Tailwind CSS 3.4.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+#### Access
+
+| URL                          | Description        |
+|------------------------------|--------------------|
+| http://localhost:5173        | Frontend app       |
+| http://localhost:8000/api    | Backend API        |
+| http://localhost:8000/docs   | Swagger API docs   |
+| http://localhost:8000/redoc  | ReDoc API docs     |
+
 ## Architecture
+
+The system follows a layered architecture: a React SPA communicates with a FastAPI backend through a middleware pipeline. The client layer manages global state with Zustand and routes all API requests through a fetch-based client. On the server side, incoming requests pass through CORS origin checks, request logging, and in-memory rate limiting (30 req/min per IP on AI routes) before reaching route handlers. Route handlers in FastAPI delegate to service classes, which contain business logic and AI orchestration. Pydantic schemas (Zod-equivalent for Python) handle request validation and response serialisation at every endpoint. The ORM layer (SQLAlchemy 2.0 async) maps 13 entity models to PostgreSQL tables with cascade deletes on owned resources. AI requests are sent to Google Gemini by default, with automatic fallback to OpenAI if the primary provider fails or times out.
+
+Authentication uses a JWT (HS256) flow: users register with bcrypt-hashed passwords (12 rounds), then receive a signed token on login. Protected routes verify the token via a `get_current_user` dependency; admin routes additionally check the user role. OAuth providers (Google, GitHub) are supported alongside email/password authentication. Rate limiting is enforced per-IP on AI routes using an in-memory sliding window algorithm.
 
 ```mermaid
 flowchart TB
@@ -91,479 +194,57 @@ flowchart TB
     ORM --> PG
 ```
 
-### Middleware & Error Handling Flow
+> The architecture diagram above omits the Alembic migration layer and Redis caching (planned) for clarity. These are covered in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-```mermaid
-flowchart TD
-    subgraph PRE["Pre-Handler Pipeline"]
-        Request["Incoming HTTP Request"]
-        CORS["CORS Middleware\nwhitelist check"]
-        Logging["RequestLogging\nMETHOD /api/path status duration"]
-        Rate["RateLimit\n30 req/60s per IP on /api/ai/*"]
-        RouteMatch["Path Matcher\n/api/*"]
+### How Seeding Works
 
-        Request --> CORS
-        CORS --> Logging
-        Logging --> Rate
-        Rate --> RouteMatch
-    end
-
-    subgraph AUTH["Authentication Gate"]
-        RouteMatch --> NeedsAuth{Requires Auth?}
-        NeedsAuth -->|"Yes: most routes"| JWT["JWT Verification\nget_current_user / get_current_admin\nExtract Bearer, decode HS256"]
-        NeedsAuth -->|"No: register, login,\nGET roadmaps"| Handler["Route Handler\nasync reads params\ncalls services, queries DB"]
-
-        JWT --> ValidJWT{Valid JWT?}
-        ValidJWT -->|"Yes"| LoadProfile["Load Profile from DB\nby user_id"]
-        ValidJWT -->|"No"| Err401["401 Unauthorized\ninvalid or expired token"]
-        LoadProfile --> Handler
-    end
-
-    subgraph POST["Post-Handler Responses"]
-        Handler --> Result{Handler Result}
-        Result -->|"200 / 201"| JSON["JSON Response\nPydantic serialization\napplication/json"]
-        Result -->|"204"| NoContent["204 No Content\nempty body for DELETE"]
-        Result -->|"Exception raised"| ExceptionType{Exception Type}
-        ExceptionType -->|"RequestValidationError"| Err422["422 Unprocessable Entity\nfield-level error detail"]
-        ExceptionType -->|"HTTPException"| ErrStatus["Status from exception\nreturns status_code + detail"]
-        ExceptionType -->|"Unhandled"| Err500["500 Internal Server Error\ntraceback logged, generic message"]
-    end
-```
-
-### Database ERD
-
-```mermaid
-erDiagram
-    profiles ||--o{ user_roadmaps : enrolls
-    profiles ||--o{ user_node_progress : progresses
-    profiles ||--o{ notes : writes
-    profiles ||--o{ bookmarks : creates
-    profiles ||--o{ feedback : submits
-    roadmaps ||--o{ roadmap_nodes : contains
-    roadmaps ||--o{ user_roadmaps : tracked
-    roadmaps ||--o{ quizzes : has
-    roadmap_nodes ||--o{ node_dependencies : depends-on
-    roadmap_nodes ||--o{ user_node_progress : tracked
-    roadmap_nodes ||--o{ resources : has
-    roadmap_nodes ||--o{ ai_explanations : cached
-    roadmap_nodes ||--o{ notes : has
-    roadmap_nodes ||--o{ bookmarks : bookmarked
-    roadmap_nodes ||--o{ quizzes : tested-by
-    roadmap_nodes ||--o{ feedback : references
-    profiles ||--o{ quiz_attempts : takes
-    roadmap_nodes ||--o{ quiz_attempts : targets
-
-    profiles {
-        uuid id PK
-        string email UK
-        string password_hash
-        string full_name
-        string role "user | admin | super_admin"
-        int streak_days
-        string avatar_url
-        string bio
-        string current_role
-        string target_role
-        int hours_per_week
-        string experience_level
-        boolean is_public
-        datetime created_at
-    }
-
-    roadmaps {
-        uuid id PK
-        string slug UK
-        string title
-        text description
-        string category
-        string difficulty
-        float estimated_hours
-        string cover_image_url
-        boolean is_published
-        uuid created_by FK "ondelete SET NULL"
-        datetime created_at
-    }
-
-    roadmap_nodes {
-        uuid id PK
-        uuid roadmap_id FK "ondelete CASCADE"
-        string source_node_id
-        string node_type
-        string title
-        text description
-        string category
-        string difficulty
-        string why_important
-        boolean is_optional
-        float estimated_hours
-        int order_index
-        float position_x
-        float position_y
-        float width
-        float height
-    }
-
-    node_dependencies {
-        uuid node_id FK "ondelete CASCADE"
-        uuid depends_on_node_id FK "ondelete CASCADE"
-    }
-
-    user_node_progress {
-        uuid id PK
-        uuid user_id FK "ondelete CASCADE"
-        uuid node_id FK "ondelete CASCADE"
-        uuid roadmap_id FK "ondelete CASCADE"
-        string status "pending | in_progress | done | skipped"
-        datetime updated_at
-    }
-
-    user_roadmaps {
-        uuid user_id FK "ondelete CASCADE"
-        uuid roadmap_id FK "ondelete CASCADE"
-        datetime started_at
-        datetime completed_at
-        float completion_pct
-        boolean is_pinned
-    }
-
-    resources {
-        uuid id PK
-        uuid node_id FK "ondelete CASCADE"
-        string title
-        string url
-        string type
-        boolean is_free
-        boolean is_recommended
-    }
-
-    notes {
-        uuid id PK
-        uuid user_id FK "ondelete CASCADE"
-        uuid node_id FK "ondelete CASCADE"
-        text content
-        datetime created_at
-        datetime updated_at
-    }
-
-    bookmarks {
-        uuid user_id FK "ondelete CASCADE"
-        uuid node_id FK "ondelete CASCADE"
-        datetime created_at
-    }
-
-    ai_explanations {
-        uuid id PK
-        uuid node_id FK "ondelete CASCADE"
-        string prompt_type
-        text response_text
-        string model_used
-        boolean openai_fallback
-        datetime created_at
-    }
-
-    quizzes {
-        uuid id PK
-        uuid node_id FK "ondelete CASCADE"
-        string title
-        text questions_json
-    }
-
-    quiz_attempts {
-        uuid id PK
-        uuid user_id FK "ondelete CASCADE"
-        uuid node_id FK "ondelete CASCADE"
-        int score
-        int total
-        datetime created_at
-    }
-
-    feedback {
-        uuid id PK
-        uuid user_id FK "ondelete CASCADE"
-        uuid node_id FK "ondelete SET NULL"
-        string type
-        text content
-        string status "open | resolved | dismissed"
-        datetime created_at
-    }
-```
-
-All foreign keys use `ondelete` — owned resources (progress, notes, bookmarks, etc.) cascade; optional references (feedback → node) set null.
-
-## Quick Start
-
-### Prerequisites
-
-| Tool       | Version   |
-|------------|-----------|
-| Python     | 3.11+     |
-| Node.js    | 20+       |
-| PostgreSQL | 16+       |
-| Docker     | 24+ (optional) |
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and configure:
-
-| Variable           | Required | Default                                               | Description                      |
-|--------------------|----------|-------------------------------------------------------|----------------------------------|
-| `DATABASE_URL`     | Yes      | `postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge` | PostgreSQL connection string     |
-| `JWT_SECRET`       | Yes      | *(empty)*                                             | Secret for signing JWT tokens (min 32 chars) |
-| `GEMINI_API_KEY`   | No       | *(empty)*                                             | Google Gemini API key (primary)  |
-| `OPENAI_API_KEY`   | No       | *(empty)*                                             | OpenAI API key (fallback)        |
-| `CORS_ORIGINS`     | No       | `["http://localhost:5173","http://localhost:3000"]`   | Allowed CORS origins             |
-
-> At least one of `GEMINI_API_KEY` or `OPENAI_API_KEY` must be set for AI features to work.
-
-### 1. Backend Setup
-
-```bash
-# Create virtual environment
-python -m venv .venv
-
-# Activate
-.venv\Scripts\activate        # Windows
-source .venv/bin/activate     # macOS / Linux
-
-# Install Python dependencies
-cd backend
-pip install -r requirements.txt
-
-# Configure environment
-copy .env.example .env        # Windows
-# Edit .env — set DATABASE_URL, JWT_SECRET, and at least one AI key
-
-# Create the database (edit credentials as needed)
-createdb pathforge
-
-# Seed 87 roadmaps with real data from roadmap.sh
-python -m seed_data
-
-# Start development server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 2. Frontend Setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### 3. Access the app
-
-| URL                          | Description        |
-|------------------------------|--------------------|
-| http://localhost:5173        | Frontend app       |
-| http://localhost:8000/api    | Backend API        |
-| http://localhost:8000/docs   | Swagger API docs   |
-| http://localhost:8000/redoc  | ReDoc API docs     |
-
-### Docker (alternative)
-
-```bash
-docker-compose up --build
-```
-
-This starts PostgreSQL, the backend, and the frontend. The seed script must be run manually inside the container:
-
-```bash
-docker exec -it pathforge-backend-1 python -m seed_data
-```
-
-## How Seeding Works
-
-The seed script (`backend/seed_data.py`):
-
-1. Calls the **GitHub API** to list all directories under `kamranahmedse/developer-roadmap/src/data/roadmaps/`
-2. Downloads each roadmap's **React Flow JSON** file (e.g., `frontend.json`)
-3. Extracts **topic nodes** (filters out labels, buttons, paragraphs)
-4. Parses **edges** to build `NodeDependency` records
-5. For roadmaps that have migrated from JSON to markdown content files, falls back to `fetch_markdown_topics()` — parses filenames in `{slug}/content/` into flat topic lists
-6. Maps each roadmap to a hardcoded metadata entry (title, category, difficulty, description)
-7. Inserts everything into PostgreSQL — **87 roadmaps with 9,531 real nodes and 9,444 dependency edges**
-
-The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped. 3-attempt retry logic handles transient GitHub API failures.
-
-## API Reference
-
-See [docs/API.md](docs/API.md) for the full API reference.
+The seed script (`backend/seed_data.py`) calls the GitHub API to list all directories under `kamranahmedse/developer-roadmap/src/data/roadmaps/`, downloads each roadmap's React Flow JSON file, extracts topic nodes (filtering out labels, buttons, and paragraphs), parses edges to build `NodeDependency` records, and inserts everything into PostgreSQL. For roadmaps that have migrated from JSON to markdown content files, it falls back to parsing filenames in `{slug}/content/` into flat topic lists. Each roadmap is also mapped to hardcoded metadata (title, category, difficulty, description) to enrich the database records. The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped, and 3-attempt retry logic handles transient GitHub API failures. After seeding, the database contains 87 roadmaps with 9,531 real nodes and 9,444 dependency edges, with zero isolated nodes.
 
 ## Roadmap Data Sources
 
-All roadmap data from [roadmap.sh](https://roadmap.sh) via its [GitHub repository](https://github.com/kamranahmedse/developer-roadmap).
-
-| Category             | Examples                                         |
-|----------------------|--------------------------------------------------|
-| Role-based           | Frontend, Backend, DevOps, AI Engineer, Android   |
-| Skill-based          | React, Python, Kubernetes, System Design, Go      |
-| Absolute Beginners   | Frontend Beginner, Git & GitHub Beginner          |
-| Languages            | C++, PHP, Ruby, Kotlin, Scala                     |
-| Frameworks           | Django, Laravel, ASP.NET Core, FastAPI            |
-| Databases            | MongoDB, Redis, Elasticsearch                     |
-| AI/ML                | Prompt Engineering, AI Agents, AI Red Teaming     |
-| Mobile               | React Native, Swift & SwiftUI                     |
-| Web Development      | HTML, CSS, GraphQL, Design System                 |
-| DevOps               | Linux, Terraform, Cloudflare                      |
-| Best Practices       | AWS Best Practices, API Security, Code Review     |
+All roadmap data comes from [roadmap.sh](https://roadmap.sh) via its [GitHub repository](https://github.com/kamranahmedse/developer-roadmap), covering role-based roadmaps (Frontend, Backend, DevOps, AI Engineer), skill-based roadmaps (React, Python, Kubernetes, System Design), and specialised topics (Prompt Engineering, Best Practices, Databases). The seed script fetches the React Flow JSON files directly from the repo and parses nodes and edges automatically. Roadmaps span 10 categories including languages, frameworks, databases, AI/ML, mobile, web development, and DevOps.
 
 ## AI Prompts
 
-| Feature         | Prompt Key         | What it generates                                           |
-|-----------------|--------------------|-------------------------------------------------------------|
-| Explain         | `EXPLAIN_PROMPT`   | What it is, real-world analogy, code example, next steps    |
-| Simplify        | `SIMPLIFY_PROMPT`  | Beginner-friendly 150-word explanation with everyday analogies |
-| Quiz            | `QUIZ_PROMPT`      | N multiple-choice questions with explanations (returns JSON) |
-| Projects        | `PROJECT_PROMPT`   | 3 project ideas (beginner, intermediate, advanced)          |
-| Weekly Plan     | `WEEKLY_PLAN_PROMPT` | 7-day learning schedule based on pace and completed nodes |
+The app uses five prompt templates — explain, simplify, quiz, projects, and weekly plan — each engineered to return structured output:
 
-Responses are cached in `ai_explanations` table — subsequent requests return instantly.
+- **Explain**: what the topic is, real-world analogy, code example, next steps
+- **Simplify**: beginner-friendly 150-word explanation with everyday analogies
+- **Quiz**: N multiple-choice questions with explanations (returns JSON)
+- **Projects**: 3 project ideas at beginner, intermediate, and advanced levels
+- **Weekly Plan**: 7-day learning schedule based on pace and completed nodes
 
-## Future Work
+All responses are cached in the `ai_explanations` table so repeated requests for the same node return instantly without consuming API quota. See [docs/API.md](docs/API.md) for the full prompt reference and request formats.
 
-| Priority | Feature                          | Description                                           |
-|----------|----------------------------------|-------------------------------------------------------|
-| P0       | E2E tests                        | End-to-end tests for critical flows                   |
-| P1       | AI streaming responses           | Stream explanations token-by-token via SSE             |
-| P2       | Resource library                 | Curated articles, videos, and courses per node         |
-| P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
-| P2       | Redis caching layer              | Replace in-memory rate limiter, cache AI responses     |
-| P2       | Community roadmaps               | User-submitted roadmaps with voting/curation           |
-| P3       | Custom roadmap editor            | Drag-and-drop UI to create and share roadmaps          |
-| P3       | Multi-language AI support        | Explain topics in Hindi, Spanish, etc.                 |
-| P3       | GitHub integration               | Import starred repos as resources                      |
-| P3       | LinkedIn integration             | Export completed roadmaps to LinkedIn skills           |
+## API Reference
 
-## File Structure
+Full API documentation with all endpoints, request/response schemas, and examples is available in [docs/API.md](docs/API.md). The API is organised into route groups: Auth (register, login, OAuth), Roadmaps (list, detail, nodes), Progress (update, retrieve), Content (notes, bookmarks), AI (explain, quiz, projects, weekly plan), and Admin (stats, user management, feedback). Interactive docs are also available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when the backend is running.
 
-```mermaid
-mindmap
-  root(("PathForge"))
-    backend
-      app
-        core
-          config.py
-          security.py
-        db
-          session.py
-        middleware
-          logging.py
-          error_handlers.py
-          rate_limit.py
-          security_headers.py
-        models
-          user.py
-          roadmap.py
-          progress.py
-          content.py
-          quiz.py
-          resource.py
-          feedback.py
-        schemas
-          user.py
-          roadmap.py
-          progress.py
-        routes
-          auth_register.py
-          auth.py
-          roadmaps.py
-          progress.py
-          content.py
-          ai.py
-          admin.py
-        services
-          ai_service.py
-        utils
-          pagination.py
-          db_helpers.py
-        main.py
-      alembic
-        env.py
-        alembic.ini
-        versions
-      seed_data.py
-      requirements.txt
-      Dockerfile
-      .env.example
-    frontend
-      src
-        pages
-          HomePage.jsx
-          RoadmapsPage.jsx
-          RoadmapDetailPage.jsx
-          LearnPage.jsx
-          DashboardPage.jsx
-          LoginPage.jsx
-          RegisterPage.jsx
-          AdminPage.jsx
-        components
-          layout
-            Navbar.jsx
-          roadmap
-            RoadmapGraph.jsx
-          shared
-            LoadingSkeleton.jsx
-        lib
-          api.js
-        stores
-          authStore.js
-        App.jsx
-      package.json
-      vite.config.js
-      Dockerfile
-      .eslintrc.cjs
-      .prettierrc
-```
+## Deployment
 
-## Security
-
-```mermaid
-flowchart TB
-    subgraph AUTH["Authentication & Authorization"]
-        direction TB
-        AA1["Register\nbcrypt 12 rounds before DB insert"]
-        AA2["Login\nverify hash, issue HS256 JWT"]
-        AA3["JWT Token\nsub, role, exp, iat\nconfigurable expiry from JWT_EXPIRY_MINUTES"]
-        AA4["Protected Routes\nget_current_user Depends\n403 on invalid/missing token"]
-        AA5["Admin Routes\nget_current_admin Depends\nrole: admin or super_admin"]
-        AA6["Super Admin\nbody-level role check\nonly super_admin PATCHES roles"]
-    end
-
-    subgraph DATA["Data Protection"]
-        direction TB
-        D1["SQLAlchemy ORM\nparameterized queries\nno SQL injection"]
-        D2["Foreign Keys\nCASCADE on owned resources\nSET NULL on optional references"]
-        D3["Race Condition\nunique constraint on email\n409 Conflict on duplicate"]
-    end
-
-    subgraph NETWORK["Network Protection"]
-        direction TB
-        N1["CORS Middleware\norigin whitelist from env"]
-        N2["Rate Limiting\nin-memory sliding window\n30 req/60s per IP on /api/ai/*"]
-    end
-
-    subgraph FRONTEND["Frontend Protections"]
-        direction TB
-        F1["401 Interceptor\nclear token, redirect to login"]
-        F2["Route Guards\nProtectedRoute, GuestRoute,\nAdminRoute"]
-        F3["Token Storage\nlocalStorage, no httpOnly\ncookies"]
-    end
-
-    subgraph HARDENING["Production Hardening"]
-        direction TB
-        H1["Strong JWT_SECRET via env"]
-        H2["HTTPS via reverse proxy"]
-        H3["Short JWT expiry + refresh tokens"]
-        H4["Redis-backed rate limiting"]
-        H5["Connection pool tuning"]
-        H6["CSRF protection"]
-    end
-```
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production setup including reverse proxy, SSL, environment hardening, and Docker Compose configurations. The deployment doc covers environment variable configuration, database migrations, CI/CD integration, and monitoring. For a production deployment, you should also configure a process manager (e.g., systemd or supervisord) for the backend and a static file server for the frontend build.
 
 ## Contributing
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed setup, style guidelines, and PR workflow.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed setup, style guidelines, and PR workflow. Contributions of all kinds are welcome — bug fixes, new features, documentation improvements, and community UI components.
+
+Before submitting a PR, please run the existing tests and ensure your code follows the project's style conventions (ESLint for frontend, ruff for backend).
+
+## FAQ
+
+**Do I need my own AI API key?** Yes. You need at least a Google Gemini API key (free tier available at ai.google.dev) or an OpenAI API key for AI features to work. Without one, the app runs but AI-powered features (explanations, quizzes, projects, weekly plans) will not function. Keys are configured via the `GEMINI_API_KEY` and `OPENAI_API_KEY` environment variables in your `.env` file. If both are provided, Gemini is the primary provider and OpenAI acts as fallback.
+
+**Can I use this without Docker?** Absolutely. The manual setup section above walks through a Docker-free installation using Python venv and npm. You just need Python 3.11+, Node.js 20+, and PostgreSQL 16+ installed directly on your machine. The app has been tested on Windows, macOS, and Linux.
+
+**Is there a hosted version?** Not yet. PathForge is self-hosted only. Deployment guides and production configuration examples are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). If you are interested in a hosted offering, please open a GitHub issue to express interest.
+
+## Future Work
+
+- **E2E tests** — End-to-end tests covering auth, progress tracking, AI features, and admin flows (P0)
+- **AI streaming responses** — Stream explanations token-by-token via SSE for a more interactive experience (P1)
+- **Resource library** — Curated articles, videos, and courses per node to complement AI explanations (P2)
+
+For the full roadmap of planned features, see [GitHub Issues](https://github.com/anomalyco/Roadmaps-generator/issues).
 
 ## License
 

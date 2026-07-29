@@ -213,3 +213,37 @@ services:
       - frontend
     restart: unless-stopped
 ```
+
+---
+
+## CI/CD
+
+Example GitHub Actions workflow for automated deployment:
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and deploy
+        run: |
+          docker compose -f docker-compose.yml build
+          docker compose -f docker-compose.yml push
+```
+
+## Cloud Deployment
+
+### Railway / Render / Fly.io
+These platforms support Docker-based deployments. Set the environment variables from the table above and deploy the Dockerfile in each service directory.
+
+### AWS ECS
+1. Build images with `docker compose build`
+2. Push to ECR
+3. Create ECS task definitions with the environment variables
+4. Set up an Application Load Balancer in front of the backend service

@@ -62,6 +62,8 @@ Content-Type: application/json
 
 **Response: 200 OK** (same shape as Register)
 
+> JWT tokens expire after the duration set by JWT_EXPIRY_MINUTES. Token refresh is not yet implemented — users must re-authenticate after expiry.
+
 ### Social Login
 
 ```http
@@ -74,7 +76,7 @@ Content-Type: application/json
 }
 ```
 
-For Google, `token` is an OAuth access token. For GitHub, `token` is the OAuth authorization `code` (the backend exchanges it for an access token).
+For Google login, `token` is an OAuth access token obtained via the Google Identity Services client-side flow. For GitHub login, `token` is the authorization `code` returned by GitHub OAuth — the backend exchanges it for an access token.
 
 **Response: 200 OK** (same shape as Register)
 
@@ -371,6 +373,8 @@ Supports pagination query params: `page` (default 1) and `per_page` (default 20)
   "per_page": 20
 }
 ```
+
+> All paginated endpoints return the same shape: `{ items: [...], total: number, page: number, per_page: number }`.
 
 ---
 
