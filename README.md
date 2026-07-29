@@ -1,10 +1,10 @@
 # PathForge AI — AI-Powered Career Roadmap Platform
 
-Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,532 topics, 13,628 dependency edges — 0 isolated nodes), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,531 topics, 9,444 dependency edges — 0 isolated nodes), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
 
 ## Features
 
-- **87 Role & Skill Roadmaps** (9,532 topics, 13,628 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
+- **87 Role & Skill Roadmaps** (9,531 topics, 9,444 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh
 - **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node
 - **Adaptive Quizzes** — Generate multiple-choice questions per topic to test understanding
 - **Project Suggestions** — Get coding project ideas based on completed topics
@@ -21,10 +21,10 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 
 | Layer       | Technology                                   |
 |-------------|----------------------------------------------|
-| Frontend    | React 18 + Vite + Tailwind CSS + Zustand     |
-| Backend     | FastAPI (Python 3.11) + SQLAlchemy 2.0 async |
+| Frontend    | React 18 + Vite 6 + Tailwind CSS 3.4 + Zustand 4 |
+| Backend     | FastAPI 0.115 (Python 3.11) + SQLAlchemy 2.0 async |
 | Database    | PostgreSQL 16+                               |
-| AI          | Google Gemini (primary) / OpenAI (fallback)  |
+| AI          | Google Gemini 2.0 (primary) / OpenAI GPT-4o-mini (fallback) |
 | Auth        | JWT (HS256) + bcrypt                         |
 | Container   | Docker + docker-compose                      |
 
@@ -62,7 +62,7 @@ flowchart TB
         direction TB
         Routes["Route Groups\nAuth, Roadmaps, Progress,\nContent, AI, Admin"]
         Services["Services\nBusiness Logic + AI Service"]
-        ORM["SQLAlchemy ORM\n10 entity models"]
+        ORM["SQLAlchemy ORM\n13 entity models"]
         Schemas["Pydantic Schemas\nvalidation + serialization"]
         Utils["Utilities\npagination, db_helpers"]
         Core["Core\nconfig, security"]
@@ -199,6 +199,8 @@ erDiagram
         int order_index
         float position_x
         float position_y
+        float width
+        float height
     }
 
     node_dependencies {
@@ -230,6 +232,8 @@ erDiagram
         string title
         string url
         string type
+        boolean is_free
+        boolean is_recommended
     }
 
     notes {
@@ -253,6 +257,7 @@ erDiagram
         string prompt_type
         text response_text
         string model_used
+        boolean openai_fallback
         datetime created_at
     }
 
@@ -278,7 +283,7 @@ erDiagram
         uuid node_id FK "ondelete SET NULL"
         string type
         text content
-        string status "open | closed"
+        string status "open | resolved | dismissed"
         datetime created_at
     }
 ```
@@ -303,7 +308,7 @@ Copy `.env.example` to `.env` and configure:
 | Variable           | Required | Default                                               | Description                      |
 |--------------------|----------|-------------------------------------------------------|----------------------------------|
 | `DATABASE_URL`     | Yes      | `postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge` | PostgreSQL connection string     |
-| `JWT_SECRET`       | Yes      | `change-me-in-production-use-a-real-secret`           | Secret for signing JWT tokens    |
+| `JWT_SECRET`       | Yes      | *(empty)*                                             | Secret for signing JWT tokens (min 32 chars) |
 | `GEMINI_API_KEY`   | No       | *(empty)*                                             | Google Gemini API key (primary)  |
 | `OPENAI_API_KEY`   | No       | *(empty)*                                             | OpenAI API key (fallback)        |
 | `CORS_ORIGINS`     | No       | `["http://localhost:5173","http://localhost:3000"]`   | Allowed CORS origins             |
@@ -377,330 +382,58 @@ The seed script (`backend/seed_data.py`):
 4. Parses **edges** to build `NodeDependency` records
 5. For roadmaps that have migrated from JSON to markdown content files, falls back to `fetch_markdown_topics()` — parses filenames in `{slug}/content/` into flat topic lists
 6. Maps each roadmap to a hardcoded metadata entry (title, category, difficulty, description)
-7. Inserts everything into PostgreSQL — **87 roadmaps with 9,635 real nodes and 2,211 dependency edges**
+7. Inserts everything into PostgreSQL — **87 roadmaps with 9,531 real nodes and 9,444 dependency edges**
 
 The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped. 3-attempt retry logic handles transient GitHub API failures.
 
 ## API Reference
 
-### Auth
-
-```http
-POST /api/auth/register
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepass123",
-  "full_name": "Jane Doe"
-}
-
-# Response: 201 Created
-{
-  "access_token": "eyJhbGci...",
-  "token_type": "bearer",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "full_name": "Jane Doe",
-    "role": "user"
-  }
-}
-```
-
-```http
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepass123"
-}
-
-# Response: 200
-```
-
-### User Profile
-
-```http
-GET /api/me
-Authorization: Bearer <token>
-
-# Response: 200
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "full_name": "Jane Doe",
-  "role": "user",
-  "bio": null,
-  "current_role": null,
-  "experience_level": "beginner",
-  "streak_days": 0,
-  "created_at": "2025-06-01T00:00:00Z"
-}
-
-PATCH /api/me
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "full_name": "Jane Updated", "bio": "Learning backend" }
-
-# Response: 200
-```
-
-### Roadmaps
-
-```http
-# List all published roadmaps
-GET /api/roadmaps
-
-# Response: 200
-[
-  {
-    "id": "uuid",
-    "title": "Frontend Developer",
-    "slug": "frontend",
-    "category": "role-based",
-    "difficulty": "beginner",
-    "node_count": 85
-  }
-]
-
-# Get a single roadmap with all nodes
-GET /api/roadmaps/frontend
-
-# Response: 200
-{
-  "roadmap": { "id": "uuid", "title": "Frontend Developer", ... },
-  "nodes": [...],
-  "edges": [{ "id": "uuid", "source": "uuid", "target": "uuid" }]
-}
-
-# Node detail with dependencies, status, resources
-GET /api/roadmaps/nodes/{nodeId}
-Authorization: Bearer <token>
-
-# Response: 200
-{
-  "id": "uuid",
-  "title": "React",
-  "dependencies": [{ "node_id": "uuid", "title": "JavaScript" }],
-  "dependents": [{ "node_id": "uuid", "title": "Next.js" }],
-  "status": "in_progress",
-  "is_bookmarked": false,
-  "resources": []
-}
-```
-
-### Admin — Roadmap CRUD
-
-```http
-POST /api/roadmaps
-Authorization: Bearer <admin-token>
-Content-Type: application/json
-
-{ "title": "New Roadmap", "slug": "new-rm", "category": "skill-based", "difficulty": "intermediate" }
-
-# Response: 201 Created
-
-POST /api/roadmaps/{roadmap_id}/nodes
-Authorization: Bearer <admin-token>
-
-# Response: 201 Created
-
-POST /api/roadmaps/nodes/{node_id}/resources
-Authorization: Bearer <admin-token>
-
-# Response: 201 Created
-
-DELETE /api/roadmaps/{roadmap_id}
-DELETE /api/roadmaps/nodes/{node_id}
-DELETE /api/roadmaps/resources/{resource_id}
-# Response: 204 No Content
-```
-
-### Progress
-
-```http
-# Enroll in a roadmap (by slug or UUID)
-POST /api/progress/frontend/start
-Authorization: Bearer <token>
-
-# Response: 201 Created
-{ "message": "Enrolled successfully" }
-
-# Unenroll
-DELETE /api/progress/frontend/unenroll
-Authorization: Bearer <token>
-
-# Response: 204 No Content
-
-# Get progress for a roadmap
-GET /api/progress/frontend/progress
-Authorization: Bearer <token>
-
-# Response: 200
-{ "progress": [{ "node_id": "uuid", "status": "done", "updated_at": "..." }] }
-
-# Mark a node
-PATCH /api/progress/node/{nodeId}
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "status": "done" }
-
-# Response: 200
-{ "status": "done", "completion_pct": 42.5, "node_id": "uuid" }
-
-# Dashboard summary
-GET /api/progress/dashboard/summary
-Authorization: Bearer <token>
-
-# Response: 200
-{
-  "active_roadmaps": 3,
-  "total_nodes_completed": 42,
-  "streak_days": 5,
-  "recent_activity": []
-}
-
-# My roadmaps
-GET /api/progress/my-roadmaps
-Authorization: Bearer <token>
-
-# Response: 200
-[{ "roadmap": { "id": "uuid", "title": "...", "slug": "..." }, "completion_pct": 50, "is_pinned": false }]
-```
-
-### Content — Notes, Bookmarks, Feedback
-
-```http
-# Submit feedback
-POST /api/content/feedback
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "content": "Great platform!", "type": "general" }
-
-# Response: 201 Created
-
-# List my feedback
-GET /api/content/feedback
-Authorization: Bearer <token>
-
-# Toggle bookmark
-POST /api/content/nodes/{node_id}/bookmark
-Authorization: Bearer <token>
-
-# Response: 200
-{ "is_bookmarked": true }
-
-# Notes CRUD
-GET /api/content/nodes/{node_id}/notes
-Authorization: Bearer <token>
-
-POST /api/content/nodes/{node_id}/notes
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "content": "My note about this topic" }
-
-# Response: 201 Created
-
-PUT /api/content/nodes/{node_id}/notes
-Authorization: Bearer <token>
-
-DELETE /api/content/nodes/{node_id}/notes
-# Response: 204 No Content
-```
-
-### AI
-
-```http
-# Explain a topic (cached per node)
-POST /api/ai/explain-node
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "node_id": "uuid" }
-
-# Response: 200
-{ "explanation": "React is a JavaScript library for building user interfaces...", "cached": false }
-
-# Simplify (also cached)
-POST /api/ai/simplify-node
-Authorization: Bearer <token>
-
-# Generate quiz questions
-POST /api/ai/generate-quiz
-Authorization: Bearer <token>
-
-{ "node_id": "uuid", "count": 5 }
-
-# Response: 200
-{
-  "questions": [
-    {
-      "question": "What is a React component?",
-      "options": ["A: ...", "B: ...", "C: ...", "D: ..."],
-      "correct": "A",
-      "explanation": "A component is a reusable piece of UI..."
-    }
-  ]
-}
-
-# Suggest projects based on completed nodes
-POST /api/ai/suggest-projects
-Authorization: Bearer <token>
-
-{ "roadmap_id": "uuid", "completed_node_ids": ["uuid1", "uuid2"] }
-
-# Response: 200
-{ "projects": "3 project ideas..." }
-
-# Weekly learning plan
-POST /api/ai/weekly-plan
-Authorization: Bearer <token>
-
-{ "roadmap_id": "uuid", "hours_available": 10 }
-
-# Response: 200
-{ "plan": "Day 1: Review JavaScript basics (2h)..." }
-```
-
-### Admin
-
-```http
-GET /api/admin/stats
-Authorization: Bearer <admin-token>
-
-# Response: 200
-{
-  "total_users": 42,
-  "total_roadmaps": 86,
-  "published_roadmaps": 86,
-  "total_nodes": 9635,
-  "open_feedback": 3
-}
-
-GET /api/admin/users
-Authorization: Bearer <admin-token>
-
-PATCH /api/admin/users/{user_id}/role
-Authorization: Bearer <super-admin-token>
-Content-Type: application/json
-
-{ "role": "admin" }
-
-GET /api/admin/feedback
-Authorization: Bearer <admin-token>
-
-PATCH /api/admin/feedback/{feedback_id}
-Authorization: Bearer <admin-token>
-Content-Type: application/json
-
-{ "status": "closed" }
-```
+See [docs/API.md](docs/API.md) for the full API reference.
+
+## Roadmap Data Sources
+
+All roadmap data from [roadmap.sh](https://roadmap.sh) via its [GitHub repository](https://github.com/kamranahmedse/developer-roadmap).
+
+| Category             | Examples                                         |
+|----------------------|--------------------------------------------------|
+| Role-based           | Frontend, Backend, DevOps, AI Engineer, Android   |
+| Skill-based          | React, Python, Kubernetes, System Design, Go      |
+| Absolute Beginners   | Frontend Beginner, Git & GitHub Beginner          |
+| Languages            | C++, PHP, Ruby, Kotlin, Scala                     |
+| Frameworks           | Django, Laravel, ASP.NET Core, FastAPI            |
+| Databases            | MongoDB, Redis, Elasticsearch                     |
+| AI/ML                | Prompt Engineering, AI Agents, AI Red Teaming     |
+| Mobile               | React Native, Swift & SwiftUI                     |
+| Web Development      | HTML, CSS, GraphQL, Design System                 |
+| DevOps               | Linux, Terraform, Cloudflare                      |
+| Best Practices       | AWS Best Practices, API Security, Code Review     |
+
+## AI Prompts
+
+| Feature         | Prompt Key         | What it generates                                           |
+|-----------------|--------------------|-------------------------------------------------------------|
+| Explain         | `EXPLAIN_PROMPT`   | What it is, real-world analogy, code example, next steps    |
+| Simplify        | `SIMPLIFY_PROMPT`  | Beginner-friendly 150-word explanation with everyday analogies |
+| Quiz            | `QUIZ_PROMPT`      | N multiple-choice questions with explanations (returns JSON) |
+| Projects        | `PROJECT_PROMPT`   | 3 project ideas (beginner, intermediate, advanced)          |
+| Weekly Plan     | `WEEKLY_PLAN_PROMPT` | 7-day learning schedule based on pace and completed nodes |
+
+Responses are cached in `ai_explanations` table — subsequent requests return instantly.
+
+## Future Work
+
+| Priority | Feature                          | Description                                           |
+|----------|----------------------------------|-------------------------------------------------------|
+| P0       | E2E tests                        | End-to-end tests for critical flows                   |
+| P1       | AI streaming responses           | Stream explanations token-by-token via SSE             |
+| P2       | Resource library                 | Curated articles, videos, and courses per node         |
+| P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
+| P2       | Redis caching layer              | Replace in-memory rate limiter, cache AI responses     |
+| P2       | Community roadmaps               | User-submitted roadmaps with voting/curation           |
+| P3       | Custom roadmap editor            | Drag-and-drop UI to create and share roadmaps          |
+| P3       | Multi-language AI support        | Explain topics in Hindi, Spanish, etc.                 |
+| P3       | GitHub integration               | Import starred repos as resources                      |
+| P3       | LinkedIn integration             | Export completed roadmaps to LinkedIn skills           |
 
 ## File Structure
 
@@ -718,6 +451,7 @@ mindmap
           logging.py
           error_handlers.py
           rate_limit.py
+          security_headers.py
         models
           user.py
           roadmap.py
@@ -727,8 +461,8 @@ mindmap
           resource.py
           feedback.py
         schemas
-          roadmap.py
           user.py
+          roadmap.py
           progress.py
         routes
           auth_register.py
@@ -748,7 +482,6 @@ mindmap
         env.py
         alembic.ini
         versions
-          001_initial_schema.py
       seed_data.py
       requirements.txt
       Dockerfile
@@ -828,61 +561,9 @@ flowchart TB
     end
 ```
 
-
-## Roadmap Data Sources
-
-All roadmap data from [roadmap.sh](https://roadmap.sh) via its [GitHub repository](https://github.com/kamranahmedse/developer-roadmap).
-
-| Category             | Examples                                         |
-|----------------------|--------------------------------------------------|
-| Role-based           | Frontend, Backend, DevOps, AI Engineer, Android   |
-| Skill-based          | React, Python, Kubernetes, System Design, Go      |
-| Absolute Beginners   | Frontend Beginner, Git & GitHub Beginner          |
-| Languages            | C++, PHP, Ruby, Kotlin, Scala                     |
-| Frameworks           | Django, Laravel, ASP.NET Core, FastAPI            |
-| Databases            | MongoDB, Redis, Elasticsearch                     |
-| AI/ML                | Prompt Engineering, AI Agents, AI Red Teaming     |
-| Mobile               | React Native, Swift & SwiftUI                     |
-| Web Development      | HTML, CSS, GraphQL, Design System                 |
-| DevOps               | Linux, Terraform, Cloudflare                      |
-| Best Practices       | AWS Best Practices, API Security, Code Review     |
-
-## AI Prompts
-
-| Feature         | Prompt Key         | What it generates                                           |
-|-----------------|--------------------|-------------------------------------------------------------|
-| Explain         | `EXPLAIN_PROMPT`   | What it is, real-world analogy, code example, next steps    |
-| Simplify        | `SIMPLIFY_PROMPT`  | Beginner-friendly 150-word explanation with everyday analogies |
-| Quiz            | `QUIZ_PROMPT`      | N multiple-choice questions with explanations (returns JSON) |
-| Projects        | `PROJECT_PROMPT`   | 3 project ideas (beginner, intermediate, advanced)          |
-| Weekly Plan     | `WEEKLY_PLAN_PROMPT` | 7-day learning schedule based on pace and completed nodes |
-
-Responses are cached in `ai_explanations` table — subsequent requests return instantly.
-
-## Future Work
-
-| Priority | Feature                          | Description                                           |
-|----------|----------------------------------|-------------------------------------------------------|
-| P0       | E2E tests                        | End-to-end tests for critical flows                   |
-| P1       | AI streaming responses           | Stream explanations token-by-token via SSE             |
-| P2       | Resource library                 | Curated articles, videos, and courses per node         |
-| P2       | Progress export (PDF)            | Download roadmap progress as a certificate/PDF         |
-| P2       | Redis caching layer              | Replace in-memory rate limiter, cache AI responses     |
-| P2       | Community roadmaps               | User-submitted roadmaps with voting/curation           |
-| P3       | Custom roadmap editor            | Drag-and-drop UI to create and share roadmaps          |
-| P3       | Multi-language AI support        | Explain topics in Hindi, Spanish, etc.                 |
-| P3       | GitHub integration               | Import starred repos as resources                      |
-| P3       | LinkedIn integration             | Export completed roadmaps to LinkedIn skills           |
-
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run linting and tests
-5. Commit (`git commit -m 'Add amazing feature'`)
-6. Push (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed setup, style guidelines, and PR workflow.
 
 ## License
 

@@ -28,16 +28,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             now = time.time()
             day_ago = now - 86400
-            self.requests[user_id] = [t for t in self.requests[user_id] if t > day_ago]
+            prefix = "auth" if request.url.path.startswith("/api/auth/") else "ai"
+            key = f"{user_id}:{prefix}"
+            self.requests[key] = [t for t in self.requests[key] if t > day_ago]
 
-            if request.url.path.startswith("/api/auth/"):
+            if prefix == "auth":
                 limit = 20
             else:
                 limit = settings.AI_CALLS_PER_DAY_REGISTERED if user_id != "anonymous" else settings.AI_CALLS_PER_DAY_FREE
 
-            if len(self.requests[user_id]) >= limit:
+            if len(self.requests[key]) >= limit:
                 raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
-            self.requests[user_id].append(now)
+            self.requests[key].append(now)
 
         return await call_next(request)

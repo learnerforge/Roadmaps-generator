@@ -6,6 +6,7 @@ from app.core.security import get_current_admin
 from app.models.user import Profile
 from app.models.roadmap import Roadmap, RoadmapNode
 from app.models.feedback import Feedback
+from app.schemas.progress import RoleUpdate, FeedbackStatusUpdate
 from app.utils.db_helpers import parse_uuid
 from app.utils.pagination import PaginationParams
 
@@ -81,7 +82,7 @@ VALID_FEEDBACK_STATUSES = {"open", "resolved", "dismissed"}
 @router.patch("/users/{user_id}/role")
 async def change_role(
     user_id: str,
-    data: dict,
+    data: RoleUpdate,
     user: Profile = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -94,10 +95,9 @@ async def change_role(
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_role = data.get("role", target.role)
-    if new_role not in VALID_ROLES:
-        raise HTTPException(status_code=400, detail=f"Invalid role: {new_role}")
-    target.role = new_role
+    if data.role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {data.role}")
+    target.role = data.role
     await db.commit()
     return {"success": True, "new_role": target.role}
 
@@ -138,7 +138,7 @@ async def list_feedback(
 @router.patch("/feedback/{feedback_id}")
 async def update_feedback(
     feedback_id: str,
-    data: dict,
+    data: FeedbackStatusUpdate,
     user: Profile = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -147,9 +147,8 @@ async def update_feedback(
     fb = result.scalar_one_or_none()
     if not fb:
         raise HTTPException(status_code=404, detail="Feedback not found")
-    new_status = data.get("status", fb.status)
-    if new_status not in VALID_FEEDBACK_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
-    fb.status = new_status
+    if data.status not in VALID_FEEDBACK_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {data.status}")
+    fb.status = data.status
     await db.commit()
     return {"success": True}

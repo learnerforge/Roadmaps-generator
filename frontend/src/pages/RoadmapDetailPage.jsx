@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiGet, apiPost } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
@@ -24,12 +24,17 @@ export default function RoadmapDetailPage() {
   const [enrolling, setEnrolling] = useState(false)
   const [enrollError, setEnrollError] = useState(null)
   const [showInfo, setShowInfo] = useState(true)
+  const abortRef = useRef(null)
 
-  const loadRoadmap = useCallback(async signal => {
+  const loadRoadmap = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       setError(null)
       setLoading(true)
-      const data = await apiGet(`/roadmaps/${slug}`, { signal })
+      const data = await apiGet(`/roadmaps/${slug}`, { signal: controller.signal })
       setRoadmap(data.roadmap)
       setNodes(data.nodes || [])
       setEdges(data.edges || [])
@@ -43,9 +48,10 @@ export default function RoadmapDetailPage() {
   }, [slug])
 
   useEffect(() => {
-    const abort = new AbortController()
-    loadRoadmap(abort.signal)
-    return () => abort.abort()
+    loadRoadmap()
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
   }, [loadRoadmap])
 
   const handleStart = async () => {
@@ -86,7 +92,7 @@ export default function RoadmapDetailPage() {
           <p className="mb-1 text-sm font-semibold text-text">Failed to load roadmap</p>
           <p className="mb-4 text-xs text-text-3">{error}</p>
           <button
-            onClick={() => { const a = new AbortController(); loadRoadmap(a.signal) }}
+            onClick={loadRoadmap}
             className="btn-primary text-xs"
           >
             Try Again

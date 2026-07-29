@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { apiPost } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
@@ -15,6 +15,7 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
   const login = useAuthStore((s) => s.login)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const abortRef = useRef(null)
 
   useEffect(() => {
     const code = searchParams.get('code')
@@ -27,9 +28,11 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
         setError('OAuth state mismatch. Please try again.')
         return
       }
-      const abort = new AbortController()
+      if (abortRef.current) abortRef.current.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
       setSocialLoading('github')
-      apiPost('/auth/social', { provider: 'github', token: code }, { signal: abort.signal })
+      apiPost('/auth/social', { provider: 'github', token: code }, { signal: controller.signal })
         .then((result) => {
           login(result.access_token, result.user)
           navigate(redirectPath, { replace: true })
@@ -39,10 +42,11 @@ export default function useSocialAuth(redirectPath = '/dashboard') {
           setError(err.message || 'GitHub login failed')
           setSocialLoading(null)
         })
-      return () => abort.abort()
+      return () => {
+        if (abortRef.current) abortRef.current.abort()
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [redirectPath])
 
   const handleSocialLogin = async (provider) => {
     setError('')

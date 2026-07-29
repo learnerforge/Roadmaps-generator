@@ -31,7 +31,6 @@ def create_token(user_id: str, role: str = "user") -> str:
         "jti": str(uuid.uuid4()),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRY_MINUTES),
         "iat": datetime.now(timezone.utc),
-        "nbf": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
@@ -54,7 +53,7 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    result = await db.execute(select(Profile).where(Profile.id == user_id))
+    result = await db.execute(select(Profile).where(Profile.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -78,7 +77,7 @@ async def get_optional_user(
         user_id = payload.get("sub")
         if not user_id:
             return None
-        result = await db.execute(select(Profile).where(Profile.id == user_id))
+        result = await db.execute(select(Profile).where(Profile.id == uuid.UUID(user_id)))
         return result.scalar_one_or_none()
     except HTTPException:
         return None

@@ -1,23 +1,30 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { apiPost } from '../../lib/api'
 import Spinner from '../shared/Spinner'
 
 export default function AIExplanation({ nodeId }) {
   const [explanation, setExplanation] = useState('')
   const [loading, setLoading] = useState(false)
+  const abortRef = useRef(null)
 
   useEffect(() => {
+    if (abortRef.current) abortRef.current.abort()
     setExplanation('')
     setLoading(false)
   }, [nodeId])
 
   const handleExplain = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setExplanation('')
     try {
-      const result = await apiPost('/ai/explain-node', { node_id: nodeId })
+      const result = await apiPost('/ai/explain-node', { node_id: nodeId }, { signal: controller.signal })
       setExplanation(result.explanation)
     } catch (err) {
+      if (err.name === 'AbortError') return
       console.error('AI explanation failed:', err)
       setExplanation('Failed to generate explanation. Please try again.')
     } finally {

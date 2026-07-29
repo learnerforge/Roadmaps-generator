@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback, useMemo, useState } from 'react'
+import { useReducer, useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { apiGet, apiPatch } from '../lib/api'
 import { STATUS_COLORS } from '../lib/constants'
@@ -46,13 +46,18 @@ export default function LearnPage() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [showTopics, setShowTopics] = useState(false)
   const { roadmap, nodes, progress, selectedNode, loading, error } = state
+  const abortRef = useRef(null)
 
-  const loadData = useCallback(async (signal) => {
+  const loadData = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       dispatch({ type: 'FETCH_START' })
       const [roadmapData, progressData] = await Promise.all([
-        apiGet(`/roadmaps/${slug}`, { signal }),
-        apiGet(`/progress/${slug}/progress`, { signal }).catch((err) => { console.error('Progress load failed:', err); return { progress: [] } }),
+        apiGet(`/roadmaps/${slug}`, { signal: controller.signal }),
+        apiGet(`/progress/${slug}/progress`, { signal: controller.signal }).catch((err) => { console.error('Progress load failed:', err); return { progress: [] } }),
       ])
       const progMap = {}
       for (const p of progressData.progress || []) {
@@ -72,9 +77,10 @@ export default function LearnPage() {
   }, [slug])
 
   useEffect(() => {
-    const abort = new AbortController()
-    loadData(abort.signal)
-    return () => abort.abort()
+    loadData()
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
   }, [loadData])
 
   const handleStatusChange = useCallback(async (nodeId, status) => {
@@ -217,7 +223,7 @@ export default function LearnPage() {
         <AsyncContent
           loading={loading}
           error={error && !roadmap ? error : null}
-          onRetry={() => { const a = new AbortController(); loadData(a.signal) }}
+          onRetry={loadData}
           isEmpty={!loading && !error && !roadmap}
           emptyMessage="Roadmap not found."
         >

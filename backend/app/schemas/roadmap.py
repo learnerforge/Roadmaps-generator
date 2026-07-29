@@ -109,6 +109,10 @@ class ResourceCreate(BaseModel):
     is_recommended: bool = False
 
 
+class PublishToggle(BaseModel):
+    is_published: Optional[bool] = None
+
+
 class ResourceRead(BaseModel):
     id: UUID
     node_id: UUID

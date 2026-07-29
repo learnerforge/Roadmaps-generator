@@ -53,12 +53,17 @@ export default function RoadmapsPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const searchRef = useRef(null)
+  const abortRef = useRef(null)
 
-  const loadRoadmaps = useCallback(async (signal) => {
+  const loadRoadmaps = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       setError(null)
       setLoading(true)
-      const data = await apiGet('/roadmaps', { signal })
+      const data = await apiGet('/roadmaps', { signal: controller.signal })
       setRoadmaps(data)
     } catch (err) {
       if (err.name === 'AbortError') return
@@ -70,9 +75,10 @@ export default function RoadmapsPage() {
   }, [])
 
   useEffect(() => {
-    const abort = new AbortController()
-    loadRoadmaps(abort.signal)
-    return () => abort.abort()
+    loadRoadmaps()
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
   }, [loadRoadmaps])
 
   const filtered = useMemo(() => {
@@ -107,8 +113,7 @@ export default function RoadmapsPage() {
   }, [])
 
   const handleRetry = useCallback(() => {
-    const a = new AbortController()
-    loadRoadmaps(a.signal)
+    loadRoadmaps()
   }, [loadRoadmaps])
 
   return (

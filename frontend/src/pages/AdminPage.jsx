@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiGet } from '../lib/api'
 import AsyncContent from '../components/shared/AsyncContent'
 
@@ -9,15 +9,20 @@ export default function AdminPage() {
   const [feedback, setFeedback] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const abortRef = useRef(null)
 
-  const loadAdminData = useCallback(async (signal) => {
+  const loadAdminData = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       setError(null)
       setLoading(true)
       const [statsData, usersData, feedbackData] = await Promise.all([
-        apiGet('/admin/stats', { signal }),
-        apiGet('/admin/users', { signal }).catch((err) => { console.error('Admin users load failed:', err); return { items: [] } }),
-        apiGet('/admin/feedback', { signal }).catch((err) => { console.error('Admin feedback load failed:', err); return { items: [] } }),
+        apiGet('/admin/stats', { signal: controller.signal }),
+        apiGet('/admin/users', { signal: controller.signal }).catch((err) => { console.error('Admin users load failed:', err); return { items: [] } }),
+        apiGet('/admin/feedback', { signal: controller.signal }).catch((err) => { console.error('Admin feedback load failed:', err); return { items: [] } }),
       ])
       setStats(statsData)
       setUsers(usersData.items || usersData)
@@ -32,9 +37,10 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
-    const abort = new AbortController()
-    loadAdminData(abort.signal)
-    return () => abort.abort()
+    loadAdminData()
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
   }, [loadAdminData])
 
   return (
@@ -61,7 +67,7 @@ export default function AdminPage() {
         <AsyncContent
           loading={loading}
           error={error && !stats ? error : null}
-          onRetry={() => { const a = new AbortController(); loadAdminData(a.signal) }}
+          onRetry={loadAdminData}
         >
           {tab === 'stats' && stats && (
             <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">

@@ -49,7 +49,7 @@ def upgrade() -> None:
         sa.Column("estimated_hours", sa.Integer, nullable=True),
         sa.Column("cover_image_url", sa.Text, nullable=True),
         sa.Column("is_published", sa.Boolean, default=False),
-        sa.Column("created_by", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), nullable=True),
+        sa.Column("created_by", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
     )
@@ -95,8 +95,8 @@ def upgrade() -> None:
 
     op.create_table(
         "user_roadmaps",
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), primary_key=True),
-        sa.Column("roadmap_id", UUID(as_uuid=True), sa.ForeignKey("roadmaps.id"), primary_key=True),
+        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column("roadmap_id", UUID(as_uuid=True), sa.ForeignKey("roadmaps.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completion_pct", sa.Float, default=0.0),
@@ -106,9 +106,9 @@ def upgrade() -> None:
     op.create_table(
         "user_node_progress",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), nullable=False, index=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), nullable=False, index=True),
-        sa.Column("roadmap_id", UUID(as_uuid=True), sa.ForeignKey("roadmaps.id"), nullable=False, index=True),
+        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("roadmap_id", UUID(as_uuid=True), sa.ForeignKey("roadmaps.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("status", sa.String(20), nullable=False, default="pending"),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.UniqueConstraint("user_id", "node_id", name="uq_user_node"),
@@ -117,8 +117,8 @@ def upgrade() -> None:
     op.create_table(
         "notes",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), nullable=False, index=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), nullable=False, index=True),
+        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("content", sa.Text, nullable=False, default=""),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.UniqueConstraint("user_id", "node_id", name="uq_user_note_node"),
@@ -126,15 +126,15 @@ def upgrade() -> None:
 
     op.create_table(
         "bookmarks",
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), primary_key=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), primary_key=True),
+        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     op.create_table(
         "ai_explanations",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), nullable=False, index=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("prompt_type", sa.String(50), nullable=False),
         sa.Column("response_text", sa.Text, nullable=False),
         sa.Column("model_used", sa.String(50), nullable=False),
@@ -145,7 +145,7 @@ def upgrade() -> None:
     op.create_table(
         "quizzes",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), nullable=False, index=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("question", sa.Text, nullable=False),
         sa.Column("options", JSONB, nullable=False),
         sa.Column("correct_answer", sa.String(10), nullable=False),
@@ -156,8 +156,8 @@ def upgrade() -> None:
     op.create_table(
         "quiz_attempts",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), nullable=False, index=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), nullable=False, index=True),
+        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("score", sa.Integer, nullable=False),
         sa.Column("answers", JSONB, nullable=True),
         sa.Column("taken_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -166,8 +166,8 @@ def upgrade() -> None:
     op.create_table(
         "feedback",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id"), nullable=False, index=True),
-        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id"), nullable=True, index=True),
+        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("node_id", UUID(as_uuid=True), sa.ForeignKey("roadmap_nodes.id", ondelete="SET NULL"), nullable=True, index=True),
         sa.Column("type", sa.String(50), nullable=False, default="general"),
         sa.Column("content", sa.Text, nullable=False),
         sa.Column("status", sa.String(20), nullable=False, default="open"),

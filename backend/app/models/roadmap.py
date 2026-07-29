@@ -26,7 +26,7 @@ class RoadmapNode(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     roadmap_id = Column(UUID(as_uuid=True), ForeignKey("roadmaps.id", ondelete="CASCADE"), nullable=False, index=True)
-    source_node_id = Column(String(255), nullable=True, index=True)
+    source_node_id = Column(String(100), nullable=True, index=True)
     node_type = Column(String(20), default="topic")
     title = Column(String(150), nullable=False)
     description = Column(Text, nullable=True)

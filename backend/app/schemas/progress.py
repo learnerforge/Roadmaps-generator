@@ -70,3 +70,11 @@ class NoteRead(BaseModel):
 class BookmarkToggleResponse(BaseModel):
     is_bookmarked: bool
 
+
+class RoleUpdate(BaseModel):
+    role: str
+
+
+class FeedbackStatusUpdate(BaseModel):
+    status: str
+

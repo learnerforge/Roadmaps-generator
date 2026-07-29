@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { apiGet, apiDownload } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
@@ -10,14 +10,19 @@ export default function DashboardPage() {
   const [myRoadmaps, setMyRoadmaps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const abortRef = useRef(null)
 
-  const loadDashboard = useCallback(async (signal) => {
+  const loadDashboard = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       setError(null)
       setLoading(true)
       const [summaryData, roadmapsData] = await Promise.all([
-        apiGet('/progress/dashboard/summary', { signal }),
-        apiGet('/progress/my-roadmaps', { signal }).catch((err) => { console.error('My roadmaps load failed:', err); return { items: [] } }),
+        apiGet('/progress/dashboard/summary', { signal: controller.signal }),
+        apiGet('/progress/my-roadmaps', { signal: controller.signal }).catch((err) => { console.error('My roadmaps load failed:', err); return { items: [] } }),
       ])
       setSummary(summaryData)
       setMyRoadmaps(roadmapsData.items || roadmapsData)
@@ -31,9 +36,10 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    const abort = new AbortController()
-    loadDashboard(abort.signal)
-    return () => abort.abort()
+    loadDashboard()
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
   }, [loadDashboard])
 
   return (
@@ -49,7 +55,7 @@ export default function DashboardPage() {
         <AsyncContent
           loading={loading}
           error={error && !summary ? error : null}
-          onRetry={() => { const a = new AbortController(); loadDashboard(a.signal) }}
+          onRetry={loadDashboard}
         >
           {summary && (
             <div className="mb-10 grid gap-4 sm:grid-cols-3">

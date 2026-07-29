@@ -11,7 +11,7 @@ from app.models.content import Bookmark
 from app.models.progress import UserNodeProgress
 from app.schemas.roadmap import (
     RoadmapCreate, RoadmapUpdate, RoadmapRead,
-    NodeCreate, NodeUpdate, NodeRead,
+    NodeCreate, NodeUpdate, NodeRead, PublishToggle,
     ResourceCreate, ResourceRead,
 )
 from app.utils.db_helpers import parse_uuid, resolve_roadmap
@@ -344,12 +344,12 @@ async def delete_roadmap(
 @router.patch("/{roadmap_ref}/publish")
 async def toggle_publish(
     roadmap_ref: str,
-    data: dict,
+    data: PublishToggle,
     db: AsyncSession = Depends(get_db),
     user: Profile = Depends(get_current_admin),
 ):
     roadmap = await resolve_roadmap(db, roadmap_ref)
-    roadmap.is_published = data.get("is_published", not roadmap.is_published)
+    roadmap.is_published = data.is_published if data.is_published is not None else not roadmap.is_published
     await db.commit()
     return {"is_published": roadmap.is_published}
 

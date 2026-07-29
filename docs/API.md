@@ -12,7 +12,7 @@ All endpoints return `application/json` unless noted. Protected endpoints requir
 - [User Profile](#user-profile)
 - [Roadmaps](#roadmaps)
 - [Progress](#progress)
-- [Content](#content-notes-bookmarks-feedback)
+- [Content (Notes, Bookmarks, Feedback)](#content-notes-bookmarks-feedback)
 - [AI](#ai)
 - [Admin](#admin)
 
@@ -73,6 +73,8 @@ Content-Type: application/json
   "token": "<oauth-access-token>"
 }
 ```
+
+For Google, `token` is an OAuth access token. For GitHub, `token` is the OAuth authorization `code` (the backend exchanges it for an access token).
 
 **Response: 200 OK** (same shape as Register)
 
@@ -139,10 +141,8 @@ GET /api/roadmaps
 | Param      | Type   | Default | Description                        |
 |------------|--------|---------|------------------------------------|
 | `category` | string | —       | Filter by category                 |
-| `difficulty` | string | —     | Filter by difficulty level         |
+| `difficulty`| string | —      | Filter by difficulty level         |
 | `search`   | string | —       | Search in title and description    |
-| `page`     | int    | 1       | Page number                        |
-| `per_page` | int    | 20      | Items per page (max 50)            |
 
 **Response: 200 OK**
 
@@ -184,13 +184,18 @@ GET /api/roadmaps/{slug}
       "title": "HTML",
       "description": "HTML content...",
       "why_important": "HTML is the foundation...",
+      "category": null,
+      "source_node_id": null,
       "node_type": "topic",
-      "position_x": 0,
-      "position_y": 0,
+      "position_x": 0.0,
+      "position_y": 0.0,
+      "width": null,
+      "height": null,
       "order_index": 1,
       "is_optional": false,
       "difficulty": "beginner",
-      "estimated_hours": 2
+      "estimated_hours": 2,
+      "created_at": "2025-06-01T00:00:00Z"
     }
   ],
   "edges": [
@@ -204,11 +209,19 @@ GET /api/roadmaps/{slug}
 }
 ```
 
+### List Nodes
+
+```http
+GET /api/roadmaps/{roadmap_id}/nodes
+```
+
+**Response: 200 OK** — array of node objects (same shape as Node above).
+
 ### Get Node Detail
 
 ```http
 GET /api/roadmaps/nodes/{nodeId}
-Authorization: Bearer <token>
+Authorization: Bearer <token>  (optional — returns public data without auth)
 ```
 
 **Response: 200 OK**
@@ -216,9 +229,22 @@ Authorization: Bearer <token>
 ```json
 {
   "id": "uuid",
+  "roadmap_id": "uuid",
   "title": "React",
   "description": "React is a JavaScript library...",
   "why_important": "React is the most widely used...",
+  "category": null,
+  "source_node_id": null,
+  "node_type": "topic",
+  "position_x": 0.0,
+  "position_y": 0.0,
+  "width": null,
+  "height": null,
+  "order_index": 1,
+  "is_optional": false,
+  "difficulty": "beginner",
+  "estimated_hours": 2,
+  "created_at": "2025-06-01T00:00:00Z",
   "dependencies": [{ "node_id": "uuid", "title": "JavaScript" }],
   "dependents": [{ "node_id": "uuid", "title": "Next.js" }],
   "status": "in_progress",
@@ -243,6 +269,8 @@ Authorization: Bearer <token>
 ```json
 { "message": "Enrolled successfully" }
 ```
+
+If already enrolled, returns `{ "message": "Already enrolled" }`.
 
 ### Unenroll
 
@@ -318,16 +346,30 @@ GET /api/progress/my-roadmaps
 Authorization: Bearer <token>
 ```
 
+Supports pagination query params: `page` (default 1) and `per_page` (default 20).
+
 **Response: 200 OK**
 
 ```json
-[
-  {
-    "roadmap": { "id": "uuid", "title": "Frontend Developer", "slug": "frontend" },
-    "completion_pct": 50.0,
-    "is_pinned": false
-  }
-]
+{
+  "items": [
+    {
+      "roadmap": {
+        "id": "uuid",
+        "title": "Frontend Developer",
+        "slug": "frontend",
+        "category": "role-based",
+        "cover_image_url": null
+      },
+      "started_at": "2025-06-10T00:00:00Z",
+      "completion_pct": 50.0,
+      "is_pinned": false
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "per_page": 20
+}
 ```
 
 ---
@@ -431,11 +473,11 @@ Content-Type: application/json
 ```json
 {
   "explanation": "React is a JavaScript library for building user interfaces...",
-  "cached": false,
-  "model_used": "gemini",
-  "openai_fallback": false
+  "cached": false
 }
 ```
+
+Responses are cached per node per experience level — subsequent identical requests return `"cached": true`.
 
 ### Simplify Topic
 
@@ -447,7 +489,7 @@ Content-Type: application/json
 { "node_id": "uuid" }
 ```
 
-**Response: 200 OK** — same shape as Explain, with beginner-friendly explanation
+**Response: 200 OK** — same shape as Explain, with beginner-friendly explanation.
 
 ### Generate Quiz
 
@@ -539,10 +581,12 @@ Authorization: Bearer <admin-token>
   "total_users": 42,
   "total_roadmaps": 87,
   "published_roadmaps": 87,
-  "total_nodes": 9531,
+  "total_nodes": 9635,
   "open_feedback": 3
 }
 ```
+
+All values are live database counts.
 
 ### List Users
 
@@ -567,14 +611,14 @@ Content-Type: application/json
 
 **Response: 200 OK**
 
-### List Feedback
+### List Feedback (Admin)
 
 ```http
 GET /api/admin/feedback
 Authorization: Bearer <admin-token>
 ```
 
-**Response: 200 OK** — paginated list of feedback items
+**Response: 200 OK** — paginated list of all feedback items
 
 ### Update Feedback Status
 
@@ -620,8 +664,7 @@ All errors follow a consistent format:
 | Endpoint Group | Limit | Window |
 |---------------|-------|--------|
 | `/api/auth/*` | 20 requests | per user per day |
-| `/api/ai/*` (free) | 5 requests | per user per day |
-| `/api/ai/*` (registered) | 20 requests | per user per day |
-| `/api/ai/*` (premium) | 999 requests | per user per day |
+| `/api/ai/*` (unauthenticated) | 5 requests | per user per day |
+| `/api/ai/*` (authenticated) | 20 requests | per user per day |
 
-Rate limits are per-user (identified by JWT). Unauthenticated requests fall back to IP-based limiting.
+Rate limits are per-user (identified by JWT). Unauthenticated requests fall back to IP-based identification. The AI rate limit configuration also includes a `AI_CALLS_PER_DAY_PREMIUM` setting (999) for future tiered access.

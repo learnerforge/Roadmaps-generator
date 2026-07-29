@@ -7,7 +7,7 @@ from sqlalchemy import select, func, delete as sa_delete
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.models.user import Profile
-from app.models.roadmap import Roadmap, RoadmapNode
+from app.models.roadmap import Roadmap, RoadmapNode, NodeDependency
 from app.models.progress import UserRoadmap, UserNodeProgress
 from app.schemas.progress import NodeProgressUpdate, DashboardSummary
 from app.utils.db_helpers import parse_uuid, resolve_roadmap
@@ -112,6 +112,23 @@ async def update_node_status(
         )
     )
     progress = result.scalar_one_or_none()
+
+    if data.status == "done":
+        dep_result = await db.execute(
+            select(NodeDependency).where(NodeDependency.node_id == uid)
+        )
+        dep_rows = dep_result.scalars().all()
+        if dep_rows:
+            dep_ids = [d.depends_on_node_id for d in dep_rows]
+            done_deps = await db.execute(
+                select(UserNodeProgress).where(
+                    UserNodeProgress.user_id == user.id,
+                    UserNodeProgress.node_id.in_(dep_ids),
+                    UserNodeProgress.status == "done",
+                )
+            )
+            if len(done_deps.scalars().all()) != len(dep_ids):
+                raise HTTPException(status_code=400, detail="Complete all prerequisites first")
 
     if progress:
         progress.status = data.status
