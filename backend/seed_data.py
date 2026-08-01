@@ -16,11 +16,12 @@ from why_important_templates import generate_why_important
 
 REPO = "nilbuild/developer-roadmap"
 BRANCH = "master"
-RAW_BASE = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/src/data/roadmaps"
-API_BASE = f"https://api.github.com/repos/{REPO}/contents/src/data/roadmaps"
+RAW_BASE = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/roadmaps"
+API_BASE = f"https://api.github.com/repos/{REPO}/contents/roadmaps"
 
 EXCLUDE_DIRS = {"content", "assets", "resources"}
 CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "content_cache.json")
+BODY_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "content_body_cache.json")
 
 ROADMAP_META = {
     "frontend": {"title": "Frontend Developer", "category": "role-based", "difficulty": "beginner", "description": "Step by step guide to becoming a modern frontend developer in 2026."},
@@ -144,6 +145,15 @@ def save_content_cache(content_map: dict[str, list[str]]):
     print(f"  Cached {sum(len(v) for v in content_map.values())} files across {len(content_map)} roadmaps")
 
 
+def load_body_cache() -> dict[str, str]:
+    """Load cached markdown content bodies keyed by content file path."""
+    try:
+        with open(BODY_CACHE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
 async def fetch_repo_archive(client: httpx.AsyncClient) -> dict[str, list[str]] | None:
     """Download and extract repo archive to build content map without API rate limits."""
     import io, zipfile
@@ -163,7 +173,7 @@ async def fetch_repo_archive(client: httpx.AsyncClient) -> dict[str, list[str]] 
         return None
 
     content_files: dict[str, list[str]] = {}
-    prefix = f"developer-roadmap-master/src/data/roadmaps/"
+    prefix = f"developer-roadmap-master/roadmaps/"
     try:
         with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
             for path in z.namelist():
@@ -230,6 +240,9 @@ async def seed():
             else:
                 print("  Archive download failed too. Proceeding with JSON-only roadmaps.")
                 content_map = {}
+
+        # Load cached markdown content bodies (keyed by content file path)
+        body_cache = load_body_cache()
 
         dir_resp = await client.get(API_BASE, timeout=15)
         if dir_resp.status_code == 200:
@@ -311,6 +324,8 @@ async def seed():
                 source_id = n.get("id")
                 label = n.get("data", {}).get("label", "Untitled")
                 description = n.get("description") if is_markdown else None
+                if not description and is_markdown and source_id:
+                    description = body_cache.get(source_id)
                 w = n.get("width")
                 h = n.get("height")
 

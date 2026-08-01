@@ -72,7 +72,43 @@ def clean_markdown(raw: str) -> str:
 def path_to_url(path: str) -> str:
     """Convert content_cache path to raw GitHub URL."""
     stripped = path[len(PREFIX):] if path.startswith(PREFIX) else path
+    stripped = stripped.replace("src/data/roadmaps/", "roadmaps/", 1)
     return f"{RAW_BASE}/{stripped}"
+
+
+async def refresh_content_cache(client: httpx.AsyncClient) -> dict[str, list[str]]:
+    """Download the repo archive and rebuild the content path cache."""
+    import io
+    import zipfile
+
+    archive_url = f"https://github.com/{REPO}/archive/refs/heads/{BRANCH}.zip"
+    for attempt in range(3):
+        try:
+            resp = await client.get(archive_url, timeout=60)
+            if resp.status_code == 200:
+                break
+            print(f"  Archive download failed: HTTP {resp.status_code}, retrying...")
+            await asyncio.sleep(3)
+        except Exception as e:
+            print(f"  Archive download error: {e}, retrying...")
+            await asyncio.sleep(3)
+    else:
+        return {}
+
+    content_files: dict[str, list[str]] = {}
+    prefix = f"{PREFIX}roadmaps/"
+    try:
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+            for path in z.namelist():
+                if path.endswith(".md") and "/content/" in path and path.startswith(prefix):
+                    parts = path[len(prefix):].split("/")
+                    slug = parts[0]
+                    content_files.setdefault(slug, []).append(path)
+    except Exception as e:
+        print(f"  Error extracting archive: {e}")
+        return {}
+
+    return content_files
 
 
 async def fetch_one(
@@ -101,9 +137,20 @@ async def fetch_one(
     return (path, None)
 
 
-async def fetch_all(force: bool = False):
+async def fetch_all(force: bool = False, refresh: bool = False):
     """Download all markdown content files with concurrency limiting."""
     content_paths = load_json(CONTENT_CACHE)
+    if refresh or not content_paths:
+        print("Refreshing content path cache from repo archive...")
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            content_paths = await refresh_content_cache(client)
+        if not content_paths:
+            print("Failed to rebuild content cache. Aborting.")
+            return
+        save_json(CONTENT_CACHE, content_paths)
+        force = True
+        print(f"  Rebuilt content cache: {len(content_paths)} roadmaps")
+
     if not content_paths:
         print("No content_cache.json found. Run seed_data.py first.")
         return
@@ -187,6 +234,8 @@ def show_stats():
 if __name__ == "__main__":
     if "--stats" in sys.argv:
         show_stats()
+    elif "--refresh" in sys.argv:
+        asyncio.run(fetch_all(force=True, refresh=True))
     elif "--force" in sys.argv:
         asyncio.run(fetch_all(force=True))
     else:
