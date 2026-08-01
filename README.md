@@ -2,11 +2,9 @@
 
 # PathForge AI — AI-Powered Career Roadmap Platform
 
-Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,531 topics, 9,444 dependency edges), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place.
+Plan, track, and master your tech career with AI-guided learning paths. PathForge imports **87 real roadmaps from roadmap.sh** (9,444 topics, 9,357 dependency edges), visualises every topic as an interactive node graph, and enriches everything with AI explanations, quizzes, project suggestions, and weekly study plans — all in one place. **9,395 of 9,444 nodes (99.5%)** ship with full markdown descriptions sourced from the original roadmap content, so every node is more than just a label.
 
 **Why PathForge?** Most roadmaps are static images or lists — you cannot track progress, get AI help on a specific topic, or see how concepts connect. PathForge turns any roadmap into a living, interactive, AI-augmented experience where you can mark nodes as complete, take topic quizzes, get personalised project ideas, and receive a weekly study plan tailored to your pace and completed topics. Whether you are a beginner following the Frontend roadmap or an engineer levelling up in System Design, PathForge adapts to your learning journey.
-
-<!-- TODO: Add screenshot or GIF of the interactive node graph -->
 
 ## Table of Contents
 
@@ -14,7 +12,9 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 - [Tech Stack](#tech-stack)
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
+- [How Seeding Works](#how-seeding-works)
 - [Roadmap Data Sources](#roadmap-data-sources)
+- [Project Structure](#project-structure)
 - [AI Prompts](#ai-prompts)
 - [API Reference](#api-reference)
 - [Deployment](#deployment)
@@ -25,7 +25,8 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 
 ## Features
 
-- **87 Role & Skill Roadmaps** (9,531 topics, 9,444 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — scraped live from roadmap.sh via its GitHub repository
+- **87 Role & Skill Roadmaps** (9,444 topics, 9,357 dependency edges — 0 isolated nodes) — Frontend, Backend, DevOps, AI/ML, System Design, and more — imported from the roadmap.sh GitHub repository
+- **Rich Topic Content** — 9,395 of 9,444 nodes (99.5%) have full markdown descriptions populated at seed time from the roadmap content files, so every node includes real explanatory material rather than just a title
 - **AI Topic Explanations** — Gemini (primary) + OpenAI (fallback) explains any node in simple terms, cached per node in the `ai_explanations` table so subsequent requests return instantly
 - **Adaptive Quizzes** — Generate multiple-choice questions per topic with explanations for each answer to reinforce learning
 - **Project Suggestions** — Get coding project ideas based on completed topics, at beginner, intermediate, and advanced levels
@@ -45,12 +46,12 @@ Plan, track, and master your tech career with AI-guided learning paths. PathForg
 |-------------|----------------------------------------------|
 | Frontend    | React 18 + Vite 6 + Tailwind CSS 3.4 + Zustand 4 |
 | Backend     | FastAPI 0.115 (Python 3.11) + SQLAlchemy 2.0 async |
-| Database    | PostgreSQL 16+                               |
-| AI          | Google Gemini 2.0 (primary) / OpenAI GPT-4o-mini (fallback) |
-| Auth        | JWT (HS256) + bcrypt                         |
+| Database    | PostgreSQL 16+ (asyncpg driver)              |
+| AI          | Google Gemini 2.0 Flash (primary) / OpenAI GPT-4o-mini (fallback) |
+| Auth        | JWT (HS256) + bcrypt (12 rounds)             |
 | Container   | Docker + docker-compose                      |
 
-All async database operations use SQLAlchemy 2.0's async session with asyncpg driver. FastAPI async route handlers ensure non-blocking I/O across the stack. Alembic handles database migrations with an auto-generated version history in `backend/alembic/versions/`.
+All async database operations use SQLAlchemy 2.0's async session with the asyncpg driver. FastAPI async route handlers ensure non-blocking I/O across the stack. Alembic handles database migrations with an auto-generated version history in `backend/alembic/versions/`.
 
 ## Quick Start
 
@@ -62,9 +63,7 @@ docker-compose up --build
 docker exec -it pathforge-backend-1 python -m seed_data
 ```
 
-Then open http://localhost:5173. The Docker setup starts three services: `postgres` (PostgreSQL 16), `backend` (FastAPI with hot-reload on port 8000), and `frontend` (Vite dev server on port 5173). Make sure `.env` is configured before running — the Docker Compose setup reads from the same `.env` file as the manual setup. The compose configuration is designed for local development; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production adjustments (reverse proxy, SSL, environment hardening).
-
-The first build may take a few minutes as it installs Python and Node dependencies. Subsequent starts use Docker layer caching and are nearly instant.
+Then open http://localhost:5173. The Docker setup starts three services: `db` (PostgreSQL 16, data persisted in the `pgdata` volume), `backend` (FastAPI with hot-reload on port 8000), and `frontend` (Vite dev server on port 5173). Default container names are `<project>-db-1`, `<project>-backend-1`, and `<project>-frontend-1`. Make sure `.env` is configured before running — the Docker Compose setup reads from the same `.env` file as the manual setup, and `JWT_SECRET` is required. The compose configuration is designed for local development; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production adjustments (reverse proxy, SSL, environment hardening). The first build may take a few minutes as it installs Python and Node dependencies; subsequent starts use Docker layer caching and are nearly instant.
 
 ### Manual Setup
 
@@ -81,15 +80,28 @@ The first build may take a few minutes as it installs Python and Node dependenci
 
 Copy `.env.example` to `.env` and configure:
 
-| Variable           | Required | Default                                               | Description                      |
-|--------------------|----------|-------------------------------------------------------|----------------------------------|
-| `DATABASE_URL`     | Yes      | `postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge` | PostgreSQL connection string     |
-| `JWT_SECRET`       | Yes      | *(empty)*                                             | Secret for signing JWT tokens (min 32 chars) |
-| `GEMINI_API_KEY`   | No       | *(empty)*                                             | Google Gemini API key (primary)  |
-| `OPENAI_API_KEY`   | No       | *(empty)*                                             | OpenAI API key (fallback)        |
-| `CORS_ORIGINS`     | No       | `["http://localhost:5173","http://localhost:3000"]`   | Allowed CORS origins             |
+| Variable                 | Required | Default                                               | Description                                  |
+|--------------------------|----------|-------------------------------------------------------|----------------------------------------------|
+| `DATABASE_URL`           | Yes      | `postgresql+asyncpg://postgres:postgres@localhost:5432/pathforge` | PostgreSQL async connection string |
+| `JWT_SECRET`             | Yes      | *(empty)*                                             | Secret for signing JWT tokens (min 32 chars) |
+| `JWT_ALGORITHM`          | No       | `HS256`                                               | JWT signing algorithm                        |
+| `JWT_EXPIRY_MINUTES`     | No       | `60`                                                  | JWT token lifetime in minutes                |
+| `GEMINI_API_KEY`         | No       | *(empty)*                                             | Google Gemini API key (primary provider)     |
+| `GEMINI_MODEL`           | No       | `gemini-2.0-flash`                                    | Gemini model used for AI features            |
+| `OPENAI_API_KEY`         | No       | *(empty)*                                             | OpenAI API key (fallback provider)           |
+| `OPENAI_MODEL`           | No       | `gpt-4o-mini`                                         | OpenAI model used for fallback               |
+| `GOOGLE_CLIENT_ID`       | No       | *(empty)*                                             | Google OAuth client ID                       |
+| `GITHUB_CLIENT_ID`       | No       | *(empty)*                                             | GitHub OAuth client ID                       |
+| `GITHUB_CLIENT_SECRET`   | No       | *(empty)*                                             | GitHub OAuth client secret                   |
+| `AI_CALLS_PER_DAY_FREE`  | No       | `5`                                                   | Daily AI calls for unauthenticated users     |
+| `AI_CALLS_PER_DAY_REGISTERED` | No  | `20`                                                  | Daily AI calls for registered users          |
+| `AI_CALLS_PER_DAY_PREMIUM` | No     | `999`                                                 | Daily AI calls for premium users             |
+| `CORS_ORIGINS`           | No       | `["http://localhost:5173","http://localhost:3000"]`   | Allowed CORS origins                         |
+| `FRONTEND_URL`           | No       | `http://localhost:5173`                               | Frontend URL (CORS/OAuth)                    |
+| `BACKEND_URL`            | No       | `http://localhost:8000`                               | Backend URL                                  |
+| `DEBUG`                  | No       | `false`                                               | Enable debug mode                            |
 
-> At least one of `GEMINI_API_KEY` or `OPENAI_API_KEY` must be set for AI features to work. The seed script populates the database with 87 roadmaps, 9,531 topics, and 9,444 dependency edges from roadmap.sh. Run it once after creating the database.
+> At least one of `GEMINI_API_KEY` or `OPENAI_API_KEY` must be set for AI features to work. The seed script populates the database with 87 roadmaps, 9,444 topics, and 9,357 dependency edges from roadmap.sh. Run it once after creating the database.
 
 #### Backend
 
@@ -129,9 +141,9 @@ npm run dev
 
 ## Architecture
 
-The system follows a layered architecture: a React SPA communicates with a FastAPI backend through a middleware pipeline. The client layer manages global state with Zustand and routes all API requests through a fetch-based client. On the server side, incoming requests pass through CORS origin checks, request logging, and in-memory rate limiting (30 req/min per IP on AI routes) before reaching route handlers. Route handlers in FastAPI delegate to service classes, which contain business logic and AI orchestration. Pydantic schemas (Zod-equivalent for Python) handle request validation and response serialisation at every endpoint. The ORM layer (SQLAlchemy 2.0 async) maps 13 entity models to PostgreSQL tables with cascade deletes on owned resources. AI requests are sent to Google Gemini by default, with automatic fallback to OpenAI if the primary provider fails or times out.
+The system follows a layered architecture: a React SPA communicates with a FastAPI backend through a middleware pipeline. The client layer manages global state with Zustand and routes all API requests through a fetch-based client. On the server side, incoming requests pass through CORS origin checks, request logging, and in-memory rate limiting before reaching route handlers. Rate limits are per-user and env-configurable: `/api/auth/*` is capped at 20 requests/day per user, while AI endpoints allow 5/day for unauthenticated users, 20/day for registered users, and 999/day for premium users (`AI_CALLS_PER_DAY_*`). Route handlers delegate to service classes, which hold business logic and AI orchestration; Pydantic schemas handle validation and serialisation at every endpoint. The ORM layer (SQLAlchemy 2.0 async) maps 13 entity models to PostgreSQL tables with cascade deletes on owned resources. AI requests go to Google Gemini by default, with automatic fallback to OpenAI if the primary provider fails or times out.
 
-Authentication uses a JWT (HS256) flow: users register with bcrypt-hashed passwords (12 rounds), then receive a signed token on login. Protected routes verify the token via a `get_current_user` dependency; admin routes additionally check the user role. OAuth providers (Google, GitHub) are supported alongside email/password authentication. Rate limiting is enforced per-IP on AI routes using an in-memory sliding window algorithm.
+Authentication uses a JWT (HS256) flow: users register with bcrypt-hashed passwords (12 rounds), then receive a signed token on login. Protected routes verify the token via a `get_current_user` dependency; admin routes additionally check the user role. OAuth providers (Google, GitHub) are supported alongside email/password authentication.
 
 ```mermaid
 flowchart TB
@@ -156,7 +168,7 @@ flowchart TB
         direction TB
         CORS["CORS Middleware\norigin whitelist"]
         Logging["RequestLogging\nmethod/path/status/duration"]
-        RateLimit["RateLimit\n30 req/min per IP on AI routes"]
+        RateLimit["RateLimit\nper-user daily caps\n(env-configurable)"]
 
         CORS --> Logging --> RateLimit
     end
@@ -194,15 +206,49 @@ flowchart TB
     ORM --> PG
 ```
 
-> The architecture diagram above omits the Alembic migration layer and Redis caching (planned) for clarity. These are covered in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+> The diagram above is the high-level layering. For the detailed request pipeline, authentication gate, and security hardening layers, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The data model is documented in [docs/DATABASE.md](docs/DATABASE.md).
 
 ### How Seeding Works
 
-The seed script (`backend/seed_data.py`) calls the GitHub API to list all directories under `kamranahmedse/developer-roadmap/src/data/roadmaps/`, downloads each roadmap's React Flow JSON file, extracts topic nodes (filtering out labels, buttons, and paragraphs), parses edges to build `NodeDependency` records, and inserts everything into PostgreSQL. For roadmaps that have migrated from JSON to markdown content files, it falls back to parsing filenames in `{slug}/content/` into flat topic lists. Each roadmap is also mapped to hardcoded metadata (title, category, difficulty, description) to enrich the database records. The script is **idempotent** — run it multiple times safely; existing roadmaps are skipped, and 3-attempt retry logic handles transient GitHub API failures. After seeding, the database contains 87 roadmaps with 9,531 real nodes and 9,444 dependency edges, with zero isolated nodes.
+The seed script (`backend/seed_data.py`) clears any existing roadmap data and rebuilds the catalogue from the `nilbuild/developer-roadmap` repository (branch `master`). For each of the 87 roadmaps it:
+
+1. Downloads the roadmap's React Flow JSON file (`roadmaps/{slug}/{slug}.json`) and extracts topic nodes where available.
+2. Otherwise parses the markdown content files under `roadmaps/{slug}/content/` — each `.md` filename becomes a topic node (placeholder files such as `index.md` are skipped).
+3. Loads the cached markdown bodies from `backend/content_body_cache.json` (built by `backend/fetch_content.py`) and stores them as each node's `description`.
+4. Builds a clean linear dependency chain per roadmap — every node gets exactly one prerequisite and one successor edge (indegree 1 / outdegree 1, except the first and last nodes).
+
+The script is **idempotent** — existing roadmap data is cleared and rebuilt from scratch, so running it repeatedly is safe, and 3-attempt retry logic handles transient GitHub failures. The final dataset: **87 roadmaps, 9,444 nodes, 9,357 dependency edges, and 0 isolated nodes**.
 
 ## Roadmap Data Sources
 
-All roadmap data comes from [roadmap.sh](https://roadmap.sh) via its [GitHub repository](https://github.com/kamranahmedse/developer-roadmap), covering role-based roadmaps (Frontend, Backend, DevOps, AI Engineer), skill-based roadmaps (React, Python, Kubernetes, System Design), and specialised topics (Prompt Engineering, Best Practices, Databases). The seed script fetches the React Flow JSON files directly from the repo and parses nodes and edges automatically. Roadmaps span 10 categories including languages, frameworks, databases, AI/ML, mobile, web development, and DevOps.
+All roadmap data comes from [roadmap.sh](https://roadmap.sh) via the community-maintained [nilbuild/developer-roadmap](https://github.com/nilbuild/developer-roadmap) repository (branch `master`). Content files live under `roadmaps/{slug}/content/*.md`, where each markdown file maps to a topic node and its body becomes the node's description. `backend/fetch_content.py` downloads and caches the markdown bodies into `backend/content_body_cache.json` — 9,662 files, ~4.2 MB, with 99.3% coverage — so seeding works offline and fast.
+
+The 87 roadmaps span role-based paths (Frontend, Backend, DevOps, AI Engineer), skill-based paths (React, Python, Kubernetes, System Design), and specialised topics (Prompt Engineering, Best Practices, Databases), covering 10 categories including languages, frameworks, databases, AI/ML, mobile, web development, and DevOps.
+
+## Project Structure
+
+```
+backend/
+  app/
+    core/          config, security
+    db/            async session
+    middleware/    logging, rate limiting, error handlers
+    models/        SQLAlchemy ORM models
+    schemas/       Pydantic schemas
+    routes/        FastAPI route handlers
+    services/      business logic + AI orchestration
+    utils/         pagination, db helpers
+  alembic/         database migrations
+  seed_data.py     roadmap seeder
+  fetch_content.py content body cache builder
+frontend/
+  src/
+    pages/         React page components
+    components/    shared, layout, roadmap components
+    lib/           API client
+    stores/        Zustand stores
+docs/              architecture, API, database, deployment, contributing guides
+```
 
 ## AI Prompts
 
@@ -214,7 +260,7 @@ The app uses five prompt templates — explain, simplify, quiz, projects, and we
 - **Projects**: 3 project ideas at beginner, intermediate, and advanced levels
 - **Weekly Plan**: 7-day learning schedule based on pace and completed nodes
 
-All responses are cached in the `ai_explanations` table so repeated requests for the same node return instantly without consuming API quota. See [docs/API.md](docs/API.md) for the full prompt reference and request formats.
+Explain and simplify responses are cached per node (keyed by prompt type and experience level) in the `ai_explanations` table, so repeated requests return instantly without consuming API quota; quizzes, project suggestions, and weekly plans are generated on demand. See [docs/API.md](docs/API.md) for the full prompt reference and request formats.
 
 ## API Reference
 
@@ -237,6 +283,8 @@ Before submitting a PR, please run the existing tests and ensure your code follo
 **Can I use this without Docker?** Absolutely. The manual setup section above walks through a Docker-free installation using Python venv and npm. You just need Python 3.11+, Node.js 20+, and PostgreSQL 16+ installed directly on your machine. The app has been tested on Windows, macOS, and Linux.
 
 **Is there a hosted version?** Not yet. PathForge is self-hosted only. Deployment guides and production configuration examples are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). If you are interested in a hosted offering, please open a GitHub issue to express interest.
+
+**Where does the roadmap content come from, and how is it updated?** Roadmap structure and topic descriptions are sourced from the community-maintained [nilbuild/developer-roadmap](https://github.com/nilbuild/developer-roadmap) repository. Run `python fetch_content.py` to download the latest markdown content into `backend/content_body_cache.json`, then re-run `python -m seed_data` to import the updated roadmaps into your database.
 
 ## Future Work
 
